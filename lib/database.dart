@@ -12,6 +12,11 @@ class AppDatabase {
     return _db!;
   }
 
+  Future<void> close() async {
+    await _db?.close();
+    _db = null;
+  }
+
   Future<Database> _open() async {
     final dbPath = join(await getDatabasesPath(), 'colaborer.db');
     return openDatabase(

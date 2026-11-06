@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/person.dart';
 import '../../repository/person.dart';
+import '../../services/backup_service.dart';
+import '../../services/drive_auth_service.dart';
+import 'person_detail.dart';
 
 class PeopleListScreen extends StatefulWidget {
   const PeopleListScreen({super.key});
@@ -12,6 +15,37 @@ class PeopleListScreen extends StatefulWidget {
 class _PeopleListScreenState extends State<PeopleListScreen> {
   final _repo = PeopleRepository();
   List<Person> _people = [];
+  bool _dueOnly = false;
+
+  List<Person> get _visible =>
+      _dueOnly ? _people.where(_isDue).toList() : _people;
+
+  bool _isDue(Person person) {
+    final due = person.followUpDate;
+    if (due == null) return false;
+    return !due.isAfter(DateTime.now());
+  }
+
+  String _fullName(Person person) => [
+    person.firstname,
+    person.lastname,
+    person.othername,
+  ].whereType<String>().where((part) => part.isNotEmpty).join(' ');
+
+  String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
+
+  Widget? _subtitle(Person person) {
+    final parts = [
+      person.phoneno,
+      person.email,
+      person.address,
+      person.metAt,
+      if (person.followUpDate != null)
+        'Follow-up ${_formatDate(person.followUpDate!)}',
+    ].whereType<String>().where((part) => part.isNotEmpty).toList();
+    if (parts.isEmpty) return null;
+    return Text(parts.join(' • '));
+  }
 
   @override
   void initState() {
@@ -42,6 +76,12 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
 
   Future<void> _loadPeople() async {
     final people = await _repo.getAllPeople();
+    people.sort((a, b) {
+      final aDue = _isDue(a);
+      final bDue = _isDue(b);
+      if (aDue != bDue) return aDue ? -1 : 1;
+      return b.createdAt.compareTo(a.createdAt);
+    });
     if (!mounted) return;
     setState(() => _people = people);
   }
@@ -161,33 +201,126 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     metAt.dispose();
   }
 
+  Future<void> _restore() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Restore from Drive?'),
+        content: const Text(
+          'This replaces everything on this phone with your last backup.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final client = await DriveAuthService().signIn();
+      final found = await BackupService().restore(client);
+      if (found) await _loadPeople();
+      messenger.showSnackBar(
+        SnackBar(content: Text(found ? 'Restore complete' : 'No backup found')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final visible = _visible;
     return Scaffold(
-      appBar: AppBar(title: const Text('Co-laborer')),
-      body: _people.isEmpty
-          ? const Center(child: Text('No people yet'))
-          : ListView.builder(
-        itemCount: _people.length,
-        itemBuilder: (context, index) {
-          final person = _people[index];
-          final fullName = [
-            person.firstname,
-            person.lastname,
-            person.othername,
-          ].whereType<String>().where((part) => part.isNotEmpty).join(' ');
-          final details = [
-            person.phoneno,
-            person.email,
-            person.address,
-            person.metAt,
-          ].whereType<String>().where((part) => part.isNotEmpty).join(' • ');
-          return ListTile(
-            title: Text(fullName),
-            subtitle: details.isEmpty ? null : Text(details),
-          );
-        },
+      appBar: AppBar(
+        title: const Text('Co-laborer'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _dueOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
+            ),
+            tooltip: 'Show only due',
+            onPressed: () => setState(() => _dueOnly = !_dueOnly),
+          ),
+          IconButton(
+            icon: const Icon(Icons.cloud_upload),
+            tooltip: 'Back up to Drive',
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                final client = await DriveAuthService().signIn();
+                await BackupService().backup(client);
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Backup complete')),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Backup failed: $e')),
+                );
+              }
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.cloud_download),
+            tooltip: 'Restore from Drive',
+            onPressed: _restore,
+          ),
+        ],
       ),
+      body: visible.isEmpty
+          ? Center(
+              child: Text(_dueOnly ? 'No one is due' : 'No people yet'),
+            )
+          : ListView.builder(
+              itemCount: visible.length,
+              itemBuilder: (context, index) {
+                final person = visible[index];
+                return Dismissible(
+                  key: ValueKey(person.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 16),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  confirmDismiss: (_) => _confirmDelete(_fullName(person)),
+                  onDismissed: (_) {
+                    setState(
+                      () => _people.removeWhere((p) => p.id == person.id),
+                    );
+                    _repo.deletePerson(person.id);
+                  },
+                  child: ListTile(
+                    title: Text(_fullName(person)),
+                    subtitle: _subtitle(person),
+                    trailing: _isDue(person)
+                        ? const Icon(
+                            Icons.notifications_active,
+                            color: Colors.orange,
+                          )
+                        : null,
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PersonDetailScreen(person: person),
+                        ),
+                      );
+                      _loadPeople();
+                    },
+                  ),
+                );
+              },
+            ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddDialog,
         child: const Icon(Icons.add),
