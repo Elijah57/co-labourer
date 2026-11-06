@@ -8,6 +8,7 @@ import '../database.dart';
 
 class BackupService {
   static const _fileName = 'colaborer.db';
+  static const _photoPrefix = 'photo_';
 
   Future<Map<String, String>> _remoteFiles(drive.DriveApi api) async {
     final result = <String, String>{};
@@ -64,12 +65,21 @@ class BackupService {
     await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
     await _upload(api, File(db.path), _fileName, remote[_fileName]);
 
-    final dir = await audioDirectory();
-    await for (final entity in dir.list()) {
+    final audioDir = await audioDirectory();
+    await for (final entity in audioDir.list()) {
       if (entity is! File) continue;
       final name = p.basename(entity.path);
       if (remote.containsKey(name)) continue;
       await _upload(api, entity, name, null);
+    }
+
+    final photoDir = await photoDirectory();
+    await for (final entity in photoDir.list()) {
+      if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      final driveName = '$_photoPrefix$name';
+      if (remote.containsKey(driveName)) continue;
+      await _upload(api, entity, driveName, null);
     }
   }
 
@@ -92,10 +102,17 @@ class BackupService {
     }
     await AppDatabase.instance.database;
 
-    final dir = await audioDirectory();
+    final audioDir = await audioDirectory();
+    final photoDir = await photoDirectory();
     for (final entry in remote.entries) {
       if (entry.key == _fileName) continue;
-      final local = File(p.join(dir.path, entry.key));
+
+      final isPhoto = entry.key.startsWith(_photoPrefix);
+      final localName = isPhoto
+          ? entry.key.substring(_photoPrefix.length)
+          : entry.key;
+      final dir = isPhoto ? photoDir : audioDir;
+      final local = File(p.join(dir.path, localName));
       if (await local.exists()) continue;
       final bytes = await _download(api, entry.value);
       await local.writeAsBytes(bytes, flush: true);

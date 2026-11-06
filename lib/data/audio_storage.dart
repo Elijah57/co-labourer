@@ -8,3 +8,10 @@ Future<Directory> audioDirectory() async {
   if (!await dir.exists()) await dir.create(recursive: true);
   return dir;
 }
+
+Future<Directory> photoDirectory() async {
+  final base = await getApplicationDocumentsDirectory();
+  final dir = Directory(p.join(base.path, 'photos'));
+  if (!await dir.exists()) await dir.create(recursive: true);
+  return dir;
+}

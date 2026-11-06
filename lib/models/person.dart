@@ -6,6 +6,7 @@ class Person {
   final String? phoneno;
   final String? email;
   final String? address;
+  final String? photoPath;
 
   final String? metAt;
   final DateTime? followUpDate;
@@ -20,6 +21,7 @@ class Person {
     this.phoneno,
     this.email,
     this.address,
+    this.photoPath,
     this.metAt,
     this.followUpDate,
     required this.createdAt,
@@ -33,6 +35,7 @@ class Person {
     "phoneno": phoneno,
     "email": email,
     "address": address,
+    "photo_path": photoPath,
     "met_at": metAt,
     "created_at": createdAt.toIso8601String(),
     "follow_up_date": followUpDate?.toIso8601String(),
@@ -48,6 +51,7 @@ class Person {
     phoneno: m['phoneno'] as String?,
     email: m['email'] as String?,
     address: m['address'] as String?,
+    photoPath: m['photo_path'] as String?,
     metAt: m['met_at'] as String?,
     followUpDate: m['follow_up_date'] == null
         ? null
@@ -63,6 +67,8 @@ class Person {
     String? phoneno,
     String? email,
     String? address,
+    String? photoPath,
+    bool clearPhoto = false,
     String? metAt,
     DateTime? followUpDate,
   }) =>
@@ -74,6 +80,7 @@ class Person {
         phoneno: phoneno ?? this.phoneno,
         email: email ?? this.email,
         address: address ?? this.address,
+        photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         metAt: metAt ?? this.metAt,
         followUpDate: followUpDate ?? this.followUpDate,
         createdAt: createdAt,

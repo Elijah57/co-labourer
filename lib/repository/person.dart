@@ -12,6 +12,7 @@ class PeopleRepository {
     String? phoneno,
     String? email,
     String? address,
+    String? photoPath,
     String? metAt,
     DateTime? followUpDate,
   }) async {
@@ -24,6 +25,7 @@ class PeopleRepository {
       phoneno: phoneno,
       email: email,
       address: address,
+      photoPath: photoPath,
       metAt: metAt,
       followUpDate: followUpDate,
       createdAt: DateTime.now(),

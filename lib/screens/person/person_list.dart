@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/person.dart';
 import '../../repository/person.dart';
 import '../../services/backup_service.dart';
 import '../../services/drive_auth_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/photo_service.dart';
+import '../../widgets/person_avatar.dart';
+import '../../widgets/photo_source_sheet.dart';
 import 'person_detail.dart';
 
 class PeopleListScreen extends StatefulWidget {
@@ -15,6 +19,7 @@ class PeopleListScreen extends StatefulWidget {
 
 class _PeopleListScreenState extends State<PeopleListScreen> {
   final _repo = PeopleRepository();
+  final _photos = PhotoService();
   List<Person> _people = [];
   bool _dueOnly = false;
   bool _busy = false;
@@ -102,21 +107,73 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     final address = TextEditingController();
     final metAt = TextEditingController();
     DateTime? followUpDate;
+    String? workingPhoto;
+    final tempFiles = <String>{};
+
+    Future<void> cleanupTemp({String? keep}) async {
+      for (final name in tempFiles.toList()) {
+        if (name == keep) continue;
+        tempFiles.remove(name);
+        await _photos.delete(name);
+      }
+    }
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add person'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: firstname,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: 'First name'),
-                ),
+        builder: (context, setDialogState) {
+          Future<void> changePhoto() async {
+            final action = await showPhotoSourceSheet(
+              context,
+              hasPhoto: workingPhoto != null,
+            );
+            if (action == null) return;
+
+            String? picked;
+            if (action == PhotoAction.remove) {
+              picked = null;
+            } else {
+              final source = action == PhotoAction.camera
+                  ? ImageSource.camera
+                  : ImageSource.gallery;
+              picked = await _photos.pickAndSave(source);
+              if (picked == null) return;
+            }
+
+            if (!context.mounted) {
+              await _photos.delete(picked);
+              return;
+            }
+
+            final previous = workingPhoto;
+            if (previous != null && tempFiles.remove(previous)) {
+              await _photos.delete(previous);
+            }
+            if (picked != null) tempFiles.add(picked);
+            setDialogState(() => workingPhoto = picked);
+          }
+
+          return AlertDialog(
+            title: const Text('Add person'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: changePhoto,
+                    child: PersonAvatar(photoPath: workingPhoto, radius: 40),
+                  ),
+                  TextButton(
+                    onPressed: changePhoto,
+                    child: const Text('Add photo'),
+                  ),
+                  TextField(
+                    controller: firstname,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'First name',
+                    ),
+                  ),
                 TextField(
                   controller: lastname,
                   decoration: const InputDecoration(labelText: 'Last name'),
@@ -166,21 +223,23 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
     if (saved == true && firstname.text.trim().isNotEmpty) {
+      await cleanupTemp(keep: workingPhoto);
       await _repo.addPerson(
         firstname: firstname.text.trim(),
         lastname: _trimmedOrNull(lastname.text),
@@ -188,10 +247,13 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
         phoneno: _trimmedOrNull(phoneno.text),
         email: _trimmedOrNull(email.text),
         address: _trimmedOrNull(address.text),
+        photoPath: workingPhoto,
         metAt: _trimmedOrNull(metAt.text),
         followUpDate: followUpDate,
       );
       await _loadPeople();
+    } else {
+      await cleanupTemp();
     }
 
     firstname.dispose();
@@ -317,8 +379,13 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                     );
                     _repo.deletePerson(person.id);
                     NotificationService.instance.cancel(person.id);
+                    _photos.delete(person.photoPath);
                   },
                   child: ListTile(
+                    leading: PersonAvatar(
+                      photoPath: person.photoPath,
+                      radius: 22,
+                    ),
                     title: Text(_fullName(person)),
                     subtitle: _subtitle(person),
                     trailing: _isDue(person)

@@ -21,7 +21,7 @@ class AppDatabase {
     final dbPath = join(await getDatabasesPath(), 'colaborer.db');
     return openDatabase(
       dbPath,
-      version: 2,
+      version: 3,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -33,6 +33,7 @@ class AppDatabase {
             phoneno TEXT,
             email TEXT,
             address TEXT,
+            photo_path TEXT,
             met_at TEXT,
             follow_up_date TEXT,
             created_at TEXT NOT NULL
@@ -53,6 +54,9 @@ class AppDatabase {
           await db.execute('ALTER TABLE people ADD COLUMN phoneno TEXT');
           await db.execute('ALTER TABLE people ADD COLUMN email TEXT');
           await db.execute('ALTER TABLE people ADD COLUMN address TEXT');
+        }
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE people ADD COLUMN photo_path TEXT');
         }
       },
     );

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../models/interaction.dart';
 import '../../../models/person.dart';
 import '../../repository/interaction.dart';
 import '../../repository/person.dart';
 import '../../services/audio_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/photo_service.dart';
+import '../../widgets/person_avatar.dart';
+import '../../widgets/photo_source_sheet.dart';
 
 class PersonDetailScreen extends StatefulWidget {
   final Person person;
@@ -18,6 +22,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   final _repo = InteractionsRepository();
   final _peopleRepo = PeopleRepository();
   final _audio = AudioService();
+  final _photos = PhotoService();
   late Person _person;
   List<Interaction> _interactions = [];
 
@@ -136,44 +141,128 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     }
   }
 
+  Future<void> _showPhotoOptions({
+    required BuildContext dialogContext,
+    required bool hasPhoto,
+    required Future<void> Function(String?) onPicked,
+  }) async {
+    final action = await showPhotoSourceSheet(
+      dialogContext,
+      hasPhoto: hasPhoto,
+    );
+    if (action == null) return;
+
+    if (action == PhotoAction.remove) {
+      await onPicked(null);
+      return;
+    }
+
+    final source = action == PhotoAction.camera
+        ? ImageSource.camera
+        : ImageSource.gallery;
+    final fileName = await _photos.pickAndSave(source);
+    if (fileName != null) await onPicked(fileName);
+  }
+
   Future<void> _showEditDialog() async {
     final firstnameController = TextEditingController(
       text: _person.firstname,
     );
     final metAtController = TextEditingController(text: _person.metAt ?? '');
 
+    final originalPhoto = _person.photoPath;
+    String? workingPhoto = originalPhoto;
+    bool photoChanged = false;
+    final tempFiles = <String>{};
+
+    Future<void> cleanupTemp({String? keep}) async {
+      for (final name in tempFiles.toList()) {
+        if (name == keep) continue;
+        tempFiles.remove(name);
+        await _photos.delete(name);
+      }
+    }
+
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit person'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: firstnameController,
-              decoration: const InputDecoration(labelText: 'First name'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> changePhoto() async {
+            await _showPhotoOptions(
+              dialogContext: context,
+              hasPhoto: workingPhoto != null,
+              onPicked: (picked) async {
+                if (!context.mounted) {
+                  await _photos.delete(picked);
+                  return;
+                }
+                final previous = workingPhoto;
+                if (previous != null && tempFiles.remove(previous)) {
+                  await _photos.delete(previous);
+                }
+                if (picked != null) tempFiles.add(picked);
+                setDialogState(() {
+                  workingPhoto = picked;
+                  photoChanged = true;
+                });
+              },
+            );
+          }
+
+          return AlertDialog(
+            title: const Text('Edit person'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: changePhoto,
+                    child: PersonAvatar(photoPath: workingPhoto, radius: 40),
+                  ),
+                  TextButton(
+                    onPressed: changePhoto,
+                    child: const Text('Change photo'),
+                  ),
+                  TextField(
+                    controller: firstnameController,
+                    decoration: const InputDecoration(
+                      labelText: 'First name',
+                    ),
+                  ),
+                  TextField(
+                    controller: metAtController,
+                    decoration: const InputDecoration(
+                      labelText: 'Where you met',
+                    ),
+                  ),
+                ],
+              ),
             ),
-            TextField(
-              controller: metAtController,
-              decoration: const InputDecoration(labelText: 'Where you met'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
     final firstname = firstnameController.text.trim();
-    if (saved != true || firstname.isEmpty) return;
+    if (saved != true || firstname.isEmpty) {
+      await cleanupTemp();
+      firstnameController.dispose();
+      metAtController.dispose();
+      return;
+    }
+
+    final newPhoto = photoChanged ? workingPhoto : originalPhoto;
+    await cleanupTemp(keep: newPhoto);
 
     final metAt = metAtController.text.trim();
     final updated = Person(
@@ -184,12 +273,16 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       phoneno: _person.phoneno,
       email: _person.email,
       address: _person.address,
+      photoPath: newPhoto,
       metAt: metAt.isEmpty ? null : metAt,
       followUpDate: _person.followUpDate,
       createdAt: _person.createdAt,
     );
     await _peopleRepo.updatePerson(updated);
     await NotificationService.instance.schedule(updated);
+    if (photoChanged && originalPhoto != null && originalPhoto != newPhoto) {
+      await _photos.delete(originalPhoto);
+    }
     if (!mounted) return;
     setState(() => _person = updated);
 
@@ -203,7 +296,13 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_person.firstname),
+        title: Row(
+          children: [
+            PersonAvatar(photoPath: _person.photoPath, radius: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_person.firstname)),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
