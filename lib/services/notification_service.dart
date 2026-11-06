@@ -9,6 +9,9 @@ class NotificationService {
   NotificationService._();
 
   final _plugin = FlutterLocalNotificationsPlugin();
+  String? _pendingPayload;
+  Future<void> Function(String personId)? onOpenPerson;
+  Function()? refreshList;
 
   static const _details = NotificationDetails(
     android: AndroidNotificationDetails(
@@ -25,11 +28,25 @@ class NotificationService {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     await _plugin.initialize(
       settings: const InitializationSettings(android: android),
+      onDidReceiveNotificationResponse: (response) {
+        final id = response.payload;
+        if (id != null) onOpenPerson?.call(id);
+      },
     );
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp ?? false) {
+      _pendingPayload = launch!.notificationResponse?.payload;
+    }
     await _plugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
+  }
+
+  Future<void> handlePending() async {
+    final id = _pendingPayload;
+    _pendingPayload = null;
+    if (id != null) await onOpenPerson?.call(id);
   }
 
   int _idFor(String personId) =>
@@ -65,6 +82,7 @@ class NotificationService {
       scheduledDate: when,
       notificationDetails: _details,
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: person.id,
     );
   }
 

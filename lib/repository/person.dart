@@ -42,6 +42,17 @@ class PeopleRepository {
     return rows.map(Person.fromMap).toList();
   }
 
+  Future<Person?> getById(String id) async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.query(
+      'people',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : Person.fromMap(rows.first);
+  }
+
   Future<void> updatePerson(Person person) async {
     final db = await AppDatabase.instance.database;
     await db.update(

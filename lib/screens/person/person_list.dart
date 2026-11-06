@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/person.dart';
 import '../../repository/person.dart';
+import '../../services/app_lock.dart';
 import '../../services/auto_backup.dart';
 import '../../services/backup_service.dart';
 import '../../services/drive_auth_service.dart';
@@ -62,11 +63,16 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
   @override
   void initState() {
     super.initState();
+    NotificationService.instance.refreshList = () { _loadPeople(); };
     _loadPeople();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => NotificationService.instance.handlePending(),
+    );
   }
 
   @override
   void dispose() {
+    NotificationService.instance.refreshList = null;
     _searchController.dispose();
     super.dispose();
   }
@@ -335,6 +341,23 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     return 'Last backup: ${t.day}/${t.month} $hh:$mm';
   }
 
+  Future<void> _toggleAppLock() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final lock = AppLock.instance;
+    final ok = await lock.setEnabled(!lock.enabled);
+    if (!mounted) return;
+    setState(() {});
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not change app lock. Make sure your phone has a screen lock set up.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _restore() async {
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
@@ -436,6 +459,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
               if (value == 'backup') _backup();
               if (value == 'restore') _restore();
               if (value == 'auto') _toggleAutoBackup();
+              if (value == 'lock') _toggleAppLock();
             },
             itemBuilder: (context) => [
               PopupMenuItem(enabled: false, child: Text(_lastBackupLabel())),
@@ -448,6 +472,15 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                         : Icons.check_box_outline_blank,
                   ),
                   title: const Text('Auto backup'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'lock',
+                child: ListTile(
+                  leading: Icon(
+                    AppLock.instance.enabled ? Icons.lock : Icons.lock_open,
+                  ),
+                  title: const Text('App lock'),
                 ),
               ),
               const PopupMenuItem(
