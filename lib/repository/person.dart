@@ -53,6 +53,17 @@ class PeopleRepository {
     return rows.isEmpty ? null : Person.fromMap(rows.first);
   }
 
+  Future<void> setFollowUp(String id, DateTime? date) async {
+    final db = await AppDatabase.instance.database;
+    await db.update(
+      'people',
+      {'follow_up_date': date?.toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    AutoBackup.instance.markDirty();
+  }
+
   Future<void> updatePerson(Person person) async {
     final db = await AppDatabase.instance.database;
     await db.update(

@@ -21,7 +21,7 @@ class AppDatabase {
     final dbPath = join(await getDatabasesPath(), 'colaborer.db');
     return openDatabase(
       dbPath,
-      version: 3,
+      version: 4,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -48,6 +48,7 @@ class AppDatabase {
             created_at TEXT NOT NULL
           )
         ''');
+        await _createIndexes(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -58,7 +59,17 @@ class AppDatabase {
         if (oldVersion < 3) {
           await db.execute('ALTER TABLE people ADD COLUMN photo_path TEXT');
         }
+        if (oldVersion < 4) {
+          await _createIndexes(db);
+        }
       },
+    );
+  }
+
+  Future<void> _createIndexes(Database db) async {
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_interactions_person_created '
+      'ON interactions(person_id, created_at)',
     );
   }
 }
