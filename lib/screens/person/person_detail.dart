@@ -178,6 +178,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   Future<void> _showEditDialog() async {
     final firstnameController = TextEditingController(text: _person.firstname);
     final metAtController = TextEditingController(text: _person.metAt ?? '');
+    final phoneNoController = TextEditingController(text: _person.phoneno ?? '');
 
     final originalPhoto = _person.photoPath;
     String? workingPhoto = originalPhoto;
@@ -241,6 +242,24 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                     controller: metAtController,
                     decoration: const InputDecoration(
                       labelText: 'Where you met',
+                    ),
+                  ),
+                  TextField(
+                    controller: phoneNoController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone (start with + and country code)',
+                    ),
+                  ),
+                  TextField(
+                    controller: phoneNoController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone (start with + and country code)',
+                    ),
+                  ),
+                  TextField(
+                    controller: phoneNoController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone (start with + and country code)',
                     ),
                   ),
                 ],
