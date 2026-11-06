@@ -4,6 +4,7 @@ import '../../../models/person.dart';
 import '../../repository/interaction.dart';
 import '../../repository/person.dart';
 import '../../services/audio_service.dart';
+import '../../services/notification_service.dart';
 
 class PersonDetailScreen extends StatefulWidget {
   final Person person;
@@ -188,6 +189,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       createdAt: _person.createdAt,
     );
     await _peopleRepo.updatePerson(updated);
+    await NotificationService.instance.schedule(updated);
     if (!mounted) return;
     setState(() => _person = updated);
 

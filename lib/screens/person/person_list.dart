@@ -3,6 +3,7 @@ import '../../models/person.dart';
 import '../../repository/person.dart';
 import '../../services/backup_service.dart';
 import '../../services/drive_auth_service.dart';
+import '../../services/notification_service.dart';
 import 'person_detail.dart';
 
 class PeopleListScreen extends StatefulWidget {
@@ -249,6 +250,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
       final client = await DriveAuthService().signIn();
       final found = await BackupService().restore(client);
       if (found) await _loadPeople();
+      if (found) await NotificationService.instance.rescheduleAll(_people);
       messenger.showSnackBar(
         SnackBar(content: Text(found ? 'Restore complete' : 'No backup found')),
       );
@@ -314,6 +316,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                       () => _people.removeWhere((p) => p.id == person.id),
                     );
                     _repo.deletePerson(person.id);
+                    NotificationService.instance.cancel(person.id);
                   },
                   child: ListTile(
                     title: Text(_fullName(person)),
