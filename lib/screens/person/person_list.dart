@@ -16,6 +16,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
   final _repo = PeopleRepository();
   List<Person> _people = [];
   bool _dueOnly = false;
+  bool _busy = false;
 
   List<Person> get _visible =>
       _dueOnly ? _people.where(_isDue).toList() : _people;
@@ -201,6 +202,25 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     metAt.dispose();
   }
 
+  Future<void> _backup() async {
+    if (_busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final client = await DriveAuthService().signIn();
+      await BackupService().backup(client);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Backup complete')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Backup failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _restore() async {
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
@@ -224,6 +244,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     );
     if (confirmed != true) return;
 
+    setState(() => _busy = true);
     try {
       final client = await DriveAuthService().signIn();
       final found = await BackupService().restore(client);
@@ -233,6 +254,8 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
       );
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -242,6 +265,12 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Co-laborer'),
+        bottom: _busy
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(4),
+                child: LinearProgressIndicator(),
+              )
+            : null,
         actions: [
           IconButton(
             icon: Icon(
@@ -253,25 +282,12 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
           IconButton(
             icon: const Icon(Icons.cloud_upload),
             tooltip: 'Back up to Drive',
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                final client = await DriveAuthService().signIn();
-                await BackupService().backup(client);
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('Backup complete')),
-                );
-              } catch (e) {
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Backup failed: $e')),
-                );
-              }
-            },
+            onPressed: _busy ? null : _backup,
           ),
           IconButton(
             icon: const Icon(Icons.cloud_download),
             tooltip: 'Restore from Drive',
-            onPressed: _restore,
+            onPressed: _busy ? null : _restore,
           ),
         ],
       ),
