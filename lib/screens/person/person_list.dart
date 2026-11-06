@@ -6,6 +6,8 @@ import '../../services/backup_service.dart';
 import '../../services/drive_auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/photo_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/person_avatar.dart';
 import '../../widgets/photo_source_sheet.dart';
 import 'person_detail.dart';
@@ -23,9 +25,24 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
   List<Person> _people = [];
   bool _dueOnly = false;
   bool _busy = false;
+  final _searchController = TextEditingController();
+  bool _searching = false;
+  String _query = '';
 
-  List<Person> get _visible =>
-      _dueOnly ? _people.where(_isDue).toList() : _people;
+  List<Person> get _visible {
+    var list = _dueOnly ? _people.where(_isDue).toList() : _people;
+    final q = _query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list
+          .where(
+            (p) =>
+                _fullName(p).toLowerCase().contains(q) ||
+                (p.metAt ?? '').toLowerCase().contains(q),
+          )
+          .toList();
+    }
+    return list;
+  }
 
   bool _isDue(Person person) {
     final due = person.followUpDate;
@@ -58,6 +75,12 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
   void initState() {
     super.initState();
     _loadPeople();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<bool> _confirmDelete(String name) async {
@@ -328,7 +351,20 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     final visible = _visible;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Co-laborer'),
+        title: _searching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                cursorColor: AppColors.wheat,
+                decoration: const InputDecoration(
+                  hintText: 'Search people',
+                  hintStyle: TextStyle(color: Colors.white70),
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) => setState(() => _query = value),
+              )
+            : const Text('Co-laborer'),
         bottom: _busy
             ? const PreferredSize(
                 preferredSize: Size.fromHeight(4),
@@ -337,27 +373,65 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
             : null,
         actions: [
           IconButton(
+            icon: Icon(_searching ? Icons.close : Icons.search),
+            tooltip: 'Search',
+            onPressed: () => setState(() {
+              if (_searching) {
+                _searchController.clear();
+                _query = '';
+              }
+              _searching = !_searching;
+            }),
+          ),
+          IconButton(
             icon: Icon(
               _dueOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
             ),
             tooltip: 'Show only due',
             onPressed: () => setState(() => _dueOnly = !_dueOnly),
           ),
-          IconButton(
-            icon: const Icon(Icons.cloud_upload),
-            tooltip: 'Back up to Drive',
-            onPressed: _busy ? null : _backup,
-          ),
-          IconButton(
-            icon: const Icon(Icons.cloud_download),
-            tooltip: 'Restore from Drive',
-            onPressed: _busy ? null : _restore,
+          PopupMenuButton<String>(
+            enabled: !_busy,
+            onSelected: (value) {
+              if (value == 'backup') _backup();
+              if (value == 'restore') _restore();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'backup',
+                child: ListTile(
+                  leading: Icon(Icons.cloud_upload),
+                  title: Text('Back up to Drive'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'restore',
+                child: ListTile(
+                  leading: Icon(Icons.cloud_download),
+                  title: Text('Restore from Drive'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
       body: visible.isEmpty
-          ? Center(
-              child: Text(_dueOnly ? 'No one is due' : 'No people yet'),
+          ? EmptyState(
+              icon: _query.trim().isNotEmpty
+                  ? Icons.search_off
+                  : _dueOnly
+                  ? Icons.check_circle_outline
+                  : Icons.people_outline,
+              title: _query.trim().isNotEmpty
+                  ? 'No matches'
+                  : _dueOnly
+                  ? 'No follow-ups due'
+                  : 'No one here yet',
+              message: _query.trim().isNotEmpty
+                  ? 'Try a different name or place.'
+                  : _dueOnly
+                  ? 'Everyone is up to date.'
+                  : 'Tap + to add someone you meet, then log what you talk about.',
             )
           : ListView.builder(
               itemCount: visible.length,

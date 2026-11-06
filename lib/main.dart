@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'database.dart';
 import 'screens/person/person_list.dart';
 import 'services/notification_service.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,6 +16,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(home: PeopleListScreen());
+    return MaterialApp(
+      title: 'Co-laborer',
+      theme: buildTheme(Brightness.light),
+      darkTheme: buildTheme(Brightness.dark),
+      themeMode: ThemeMode.system,
+      home: const PeopleListScreen(),
+    );
   }
 }

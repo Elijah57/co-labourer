@@ -7,6 +7,7 @@ import '../../repository/person.dart';
 import '../../services/audio_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/photo_service.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/person_avatar.dart';
 import '../../widgets/photo_source_sheet.dart';
 
@@ -311,7 +312,11 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
         ],
       ),
       body: _interactions.isEmpty
-          ? const Center(child: Text('No conversations logged yet'))
+          ? const EmptyState(
+              icon: Icons.chat_bubble_outline,
+              title: 'No conversations yet',
+              message: 'Tap the mic to record a note or + to write one.',
+            )
           : ListView.builder(
         itemCount: _interactions.length,
           itemBuilder: (context, index) {
