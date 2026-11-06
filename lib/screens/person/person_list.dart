@@ -8,8 +8,10 @@ import '../../services/drive_auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/photo_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/date_format.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/person_avatar.dart';
+import '../../widgets/person_card.dart';
 import '../../widgets/photo_source_sheet.dart';
 import 'person_detail.dart';
 
@@ -56,21 +58,6 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     person.lastname,
     person.othername,
   ].whereType<String>().where((part) => part.isNotEmpty).join(' ');
-
-  String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
-
-  Widget? _subtitle(Person person) {
-    final parts = [
-      person.phoneno,
-      person.email,
-      person.address,
-      person.metAt,
-      if (person.followUpDate != null)
-        'Follow-up ${_formatDate(person.followUpDate!)}',
-    ].whereType<String>().where((part) => part.isNotEmpty).toList();
-    if (parts.isEmpty) return null;
-    return Text(parts.join(' • '));
-  }
 
   @override
   void initState() {
@@ -182,6 +169,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                spacing: 12,
                 children: [
                   GestureDetector(
                     onTap: changePhoto,
@@ -194,65 +182,73 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                   TextField(
                     controller: firstname,
                     autofocus: true,
+                    decoration: const InputDecoration(labelText: 'First name'),
+                  ),
+                  TextField(
+                    controller: lastname,
+                    decoration: const InputDecoration(labelText: 'Last name'),
+                  ),
+                  TextField(
+                    controller: othername,
+                    decoration: const InputDecoration(labelText: 'Other name'),
+                  ),
+                  TextField(
+                    controller: phoneno,
+                    keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
-                      labelText: 'First name',
+                      labelText: 'Phone number',
                     ),
                   ),
-                TextField(
-                  controller: lastname,
-                  decoration: const InputDecoration(labelText: 'Last name'),
-                ),
-                TextField(
-                  controller: othername,
-                  decoration: const InputDecoration(labelText: 'Other name'),
-                ),
-                TextField(
-                  controller: phoneno,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Phone number'),
-                ),
-                TextField(
-                  controller: email,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                ),
-                TextField(
-                  controller: address,
-                  decoration: const InputDecoration(labelText: 'Address'),
-                ),
-                TextField(
-                  controller: metAt,
-                  decoration: const InputDecoration(labelText: 'Met at'),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    followUpDate == null
-                        ? 'Follow-up date'
-                        : 'Follow-up: ${followUpDate!.toLocal().toString().split(' ').first}',
+                  TextField(
+                    controller: email,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'Email'),
                   ),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: followUpDate ?? DateTime.now(),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 3650)),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => followUpDate = picked);
-                    }
-                  },
-                ),
-              ],
+                  TextField(
+                    controller: address,
+                    decoration: const InputDecoration(labelText: 'Address'),
+                  ),
+                  TextField(
+                    controller: metAt,
+                    decoration: const InputDecoration(labelText: 'Met at'),
+                  ),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.field),
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    title: Text(
+                      followUpDate == null
+                          ? 'Follow-up date'
+                          : 'Follow-up ${formatDayMonth(followUpDate!)}',
+                    ),
+                    trailing: const Icon(Icons.calendar_today_outlined),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: followUpDate ?? DateTime.now(),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(
+                          const Duration(days: 3650),
+                        ),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => followUpDate = picked);
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('Cancel'),
               ),
-              TextButton(
+              FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('Save'),
               ),
@@ -304,9 +300,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
         ),
       );
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Backup failed: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Backup failed: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -327,13 +321,9 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
       await auto.setEnabled(true);
       auto.markDirty();
       setState(() {});
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Auto backup on')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Auto backup on')));
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not enable: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Could not enable: $e')));
     }
   }
 
@@ -387,6 +377,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: _searching
@@ -396,9 +387,14 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                 style: const TextStyle(color: Colors.white),
                 cursorColor: AppColors.wheat,
                 decoration: const InputDecoration(
+                  filled: false,
+                  isDense: true,
                   hintText: 'Search people',
                   hintStyle: TextStyle(color: Colors.white70),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
                 ),
                 onChanged: (value) => setState(() => _query = value),
               )
@@ -422,8 +418,14 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
             }),
           ),
           IconButton(
-            icon: Icon(
-              _dueOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              transitionBuilder: (child, animation) =>
+                  ScaleTransition(scale: animation, child: child),
+              child: Icon(
+                _dueOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
+                key: ValueKey(_dueOnly),
+              ),
             ),
             tooltip: 'Show only due',
             onPressed: () => setState(() => _dueOnly = !_dueOnly),
@@ -436,10 +438,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
               if (value == 'auto') _toggleAutoBackup();
             },
             itemBuilder: (context) => [
-              PopupMenuItem(
-                enabled: false,
-                child: Text(_lastBackupLabel()),
-              ),
+              PopupMenuItem(enabled: false, child: Text(_lastBackupLabel())),
               PopupMenuItem(
                 value: 'auto',
                 child: ListTile(
@@ -487,18 +486,23 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                   ? 'Everyone is up to date.'
                   : 'Tap + to add someone you meet, then log what you talk about.',
             )
-          : ListView.builder(
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
               itemCount: visible.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final person = visible[index];
                 return Dismissible(
                   key: ValueKey(person.id),
                   direction: DismissDirection.endToStart,
                   background: Container(
-                    color: Colors.red,
+                    decoration: BoxDecoration(
+                      color: scheme.error,
+                      borderRadius: BorderRadius.circular(AppRadius.card),
+                    ),
                     alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: const Icon(Icons.delete, color: Colors.white),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Icon(Icons.delete_outline, color: scheme.onError),
                   ),
                   confirmDismiss: (_) => _confirmDelete(_fullName(person)),
                   onDismissed: (_) {
@@ -509,19 +513,10 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                     NotificationService.instance.cancel(person.id);
                     _photos.delete(person.photoPath);
                   },
-                  child: ListTile(
-                    leading: PersonAvatar(
-                      photoPath: person.photoPath,
-                      radius: 22,
-                    ),
-                    title: Text(_fullName(person)),
-                    subtitle: _subtitle(person),
-                    trailing: _isDue(person)
-                        ? const Icon(
-                            Icons.notifications_active,
-                            color: Colors.orange,
-                          )
-                        : null,
+                  child: PersonCard(
+                    person: person,
+                    fullName: _fullName(person),
+                    isDue: _isDue(person),
                     onTap: () async {
                       await Navigator.push(
                         context,
@@ -535,9 +530,10 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddDialog,
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Add person'),
       ),
     );
   }

@@ -7,7 +7,10 @@ import '../../repository/person.dart';
 import '../../services/audio_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/photo_service.dart';
+import '../../theme/app_theme.dart';
+import '../../utils/date_format.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/interaction_card.dart';
 import '../../widgets/person_avatar.dart';
 import '../../widgets/photo_source_sheet.dart';
 
@@ -67,7 +70,6 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     return result ?? false;
   }
 
-
   Future<void> _showNoteDialog({Interaction? existing}) async {
     final controller = TextEditingController(text: existing?.note ?? '');
     final note = await showDialog<String>(
@@ -85,7 +87,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: const Text('Save'),
           ),
@@ -119,13 +121,21 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Recording...'),
-        content: const Icon(Icons.mic, size: 48, color: Colors.red),
+        content: CircleAvatar(
+          radius: 28,
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+          child: Icon(
+            Icons.mic,
+            size: 28,
+            color: Theme.of(context).colorScheme.error,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Stop & save'),
           ),
@@ -166,9 +176,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   }
 
   Future<void> _showEditDialog() async {
-    final firstnameController = TextEditingController(
-      text: _person.firstname,
-    );
+    final firstnameController = TextEditingController(text: _person.firstname);
     final metAtController = TextEditingController(text: _person.metAt ?? '');
 
     final originalPhoto = _person.photoPath;
@@ -215,6 +223,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                spacing: 12,
                 children: [
                   GestureDetector(
                     onTap: changePhoto,
@@ -226,9 +235,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                   ),
                   TextField(
                     controller: firstnameController,
-                    decoration: const InputDecoration(
-                      labelText: 'First name',
-                    ),
+                    decoration: const InputDecoration(labelText: 'First name'),
                   ),
                   TextField(
                     controller: metAtController,
@@ -244,7 +251,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('Cancel'),
               ),
-              TextButton(
+              FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text('Save'),
               ),
@@ -291,77 +298,184 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     metAtController.dispose();
   }
 
-  String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
+  Widget _buildInteraction(Interaction item) {
+    final scheme = Theme.of(context).colorScheme;
+    return Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        decoration: BoxDecoration(
+          color: scheme.error,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Icon(Icons.delete_outline, color: scheme.onError),
+      ),
+      confirmDismiss: (_) => _confirmDelete(),
+      onDismissed: (_) {
+        setState(() => _interactions.removeWhere((x) => x.id == item.id));
+        _repo.deleteInteraction(item.id);
+      },
+      child: InteractionCard(
+        interaction: item,
+        onTap: () => _showNoteDialog(existing: item),
+        onPlay: () => _audio.play(item.audioPath!),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            PersonAvatar(photoPath: _person.photoPath, radius: 18),
-            const SizedBox(width: 8),
-            Expanded(child: Text(_person.firstname)),
-          ],
-        ),
+        title: const Text('Person'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit person',
             onPressed: _showEditDialog,
           ),
         ],
       ),
-      body: _interactions.isEmpty
-          ? const EmptyState(
-              icon: Icons.chat_bubble_outline,
-              title: 'No conversations yet',
-              message: 'Tap the mic to record a note or + to write one.',
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        children: [
+          _PersonHeader(person: _person),
+          const SizedBox(height: 16),
+          if (_interactions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 24),
+              child: EmptyState(
+                icon: Icons.chat_bubble_outline,
+                title: 'No conversations yet',
+                message: 'Tap the mic to record a note or + to write one.',
+              ),
             )
-          : ListView.builder(
-        itemCount: _interactions.length,
-          itemBuilder: (context, index) {
-            final item = _interactions[index];
-            return Dismissible(
-              key: ValueKey(item.id),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                color: Colors.red,
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 16),
-                child: const Icon(Icons.delete, color: Colors.white),
-              ),
-              confirmDismiss: (_) => _confirmDelete(),
-              onDismissed: (_) {
-                setState(() => _interactions.removeAt(index));
-                _repo.deleteInteraction(item.id);
-              },
-              child: ListTile(
-                leading: item.audioPath != null
-                    ? IconButton(
-                        icon: const Icon(Icons.play_circle),
-                        onPressed: () => _audio.play(item.audioPath!),
-                      )
-                    : null,
-                title: Text(item.note ?? 'Audio note'),
-                subtitle: Text(_formatDate(item.createdAt)),
-                onTap: () => _showNoteDialog(existing: item),
-              ),
-            );
-          },
+          else
+            for (var i = 0; i < _interactions.length; i++) ...[
+              _buildInteraction(_interactions[i]),
+              if (i != _interactions.length - 1) const SizedBox(height: 12),
+            ],
+        ],
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           FloatingActionButton.small(
             heroTag: 'mic',
             onPressed: _recordAudio,
+            tooltip: 'Record audio',
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            foregroundColor: theme.colorScheme.primary,
             child: const Icon(Icons.mic),
           ),
           const SizedBox(height: 12),
-          FloatingActionButton(
+          FloatingActionButton.extended(
             heroTag: 'add',
             onPressed: () => _showNoteDialog(),
-            child: const Icon(Icons.add),
+            icon: const Icon(Icons.add_comment_outlined),
+            label: const Text('Log conversation'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _fullName(Person person) => [
+  person.firstname,
+  person.lastname,
+  person.othername,
+].whereType<String>().where((part) => part.isNotEmpty).join(' ');
+
+class _PersonHeader extends StatelessWidget {
+  final Person person;
+
+  const _PersonHeader({required this.person});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final metAt = person.metAt?.trim();
+    final followUp = person.followUpDate;
+    final isDue = followUp != null && !followUp.isAfter(DateTime.now());
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            PersonAvatar(photoPath: person.photoPath, radius: 40),
+            const SizedBox(height: 14),
+            Text(
+              _fullName(person),
+              style: theme.textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (metAt != null && metAt.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                metAt,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            if (followUp != null) ...[
+              const SizedBox(height: 12),
+              _FollowUpChip(date: followUp, isDue: isDue),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FollowUpChip extends StatelessWidget {
+  final DateTime date;
+  final bool isDue;
+
+  const _FollowUpChip({required this.date, required this.isDue});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final background = isDue ? AppColors.wheat : scheme.surfaceContainerHighest;
+    final foreground = isDue ? AppColors.indigoDeep : scheme.onSurfaceVariant;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: isDue ? null : Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isDue ? Icons.notifications_active : Icons.event_outlined,
+            size: 16,
+            color: foreground,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Follow-up ${formatDayMonth(date)}',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: foreground,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

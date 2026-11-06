@@ -11,9 +11,11 @@ class PersonAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final fallback = CircleAvatar(
       radius: radius,
-      child: Icon(Icons.person, size: radius),
+      backgroundColor: scheme.primary.withValues(alpha: 0.12),
+      child: Icon(Icons.person, size: radius, color: scheme.primary),
     );
 
     final name = photoPath;
