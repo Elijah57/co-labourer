@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import '../database.dart';
 import '../models/interaction.dart';
+import '../services/auto_backup.dart';
 
 class InteractionsRepository {
   final _uuid = const Uuid();
@@ -19,6 +20,7 @@ class InteractionsRepository {
       createdAt: DateTime.now(),
     );
     await db.insert('interactions', interaction.toMap());
+    AutoBackup.instance.markDirty();
     return interaction;
   }
 
@@ -41,10 +43,12 @@ class InteractionsRepository {
       where: 'id = ?',
       whereArgs: [id],
     );
+    AutoBackup.instance.markDirty();
   }
 
   Future<void> deleteInteraction(String id) async {
     final db = await AppDatabase.instance.database;
     await db.delete('interactions', where: 'id = ?', whereArgs: [id]);
+    AutoBackup.instance.markDirty();
   }
 }

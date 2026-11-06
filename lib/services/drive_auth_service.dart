@@ -25,4 +25,18 @@ class DriveAuthService {
         .authorizeScopes(_scopes);
     return authorization.authClient(scopes: _scopes);
   }
+
+  Future<auth.AuthClient?> trySilentClient() async {
+    await _init();
+    final attempt =
+        GoogleSignIn.instance.attemptLightweightAuthentication();
+    if (attempt == null) return null;
+    final account = await attempt;
+    if (account == null) return null;
+
+    final authorization = await account.authorizationClient
+        .authorizationForScopes(_scopes);
+    if (authorization == null) return null;
+    return authorization.authClient(scopes: _scopes);
+  }
 }

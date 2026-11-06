@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/person.dart';
 import '../../repository/person.dart';
+import '../../services/auto_backup.dart';
 import '../../services/backup_service.dart';
 import '../../services/drive_auth_service.dart';
 import '../../services/notification_service.dart';
@@ -294,9 +295,13 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     setState(() => _busy = true);
     try {
       final client = await DriveAuthService().signIn();
-      await BackupService().backup(client);
+      final ran = await AutoBackup.instance.run(client);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Backup complete')),
+        SnackBar(
+          content: Text(
+            ran ? 'Backup complete' : 'A backup is already running',
+          ),
+        ),
       );
     } catch (e) {
       messenger.showSnackBar(
@@ -305,6 +310,39 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _toggleAutoBackup() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final auto = AutoBackup.instance;
+
+    if (auto.enabled) {
+      await auto.setEnabled(false);
+      setState(() {});
+      return;
+    }
+
+    try {
+      await DriveAuthService().signIn();
+      await auto.setEnabled(true);
+      auto.markDirty();
+      setState(() {});
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Auto backup on')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not enable: $e')),
+      );
+    }
+  }
+
+  String _lastBackupLabel() {
+    final t = AutoBackup.instance.lastBackup;
+    if (t == null) return 'No backup yet';
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return 'Last backup: ${t.day}/${t.month} $hh:$mm';
   }
 
   Future<void> _restore() async {
@@ -395,16 +433,32 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
             onSelected: (value) {
               if (value == 'backup') _backup();
               if (value == 'restore') _restore();
+              if (value == 'auto') _toggleAutoBackup();
             },
-            itemBuilder: (context) => const [
+            itemBuilder: (context) => [
               PopupMenuItem(
+                enabled: false,
+                child: Text(_lastBackupLabel()),
+              ),
+              PopupMenuItem(
+                value: 'auto',
+                child: ListTile(
+                  leading: Icon(
+                    AutoBackup.instance.enabled
+                        ? Icons.check_box
+                        : Icons.check_box_outline_blank,
+                  ),
+                  title: const Text('Auto backup'),
+                ),
+              ),
+              const PopupMenuItem(
                 value: 'backup',
                 child: ListTile(
                   leading: Icon(Icons.cloud_upload),
-                  title: Text('Back up to Drive'),
+                  title: Text('Back up now'),
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'restore',
                 child: ListTile(
                   leading: Icon(Icons.cloud_download),

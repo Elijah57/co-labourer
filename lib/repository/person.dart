@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import '../database.dart';
 import '../models/person.dart';
+import '../services/auto_backup.dart';
 
 class PeopleRepository {
   final _uuid = const Uuid();
@@ -31,6 +32,7 @@ class PeopleRepository {
       createdAt: DateTime.now(),
     );
     await db.insert('people', person.toMap());
+    AutoBackup.instance.markDirty();
     return person;
   }
 
@@ -48,6 +50,7 @@ class PeopleRepository {
       where: 'id = ?',
       whereArgs: [person.id],
     );
+    AutoBackup.instance.markDirty();
   }
 
 
@@ -58,5 +61,6 @@ class PeopleRepository {
       where: 'id = ?',
       whereArgs: [id],
     );
+    AutoBackup.instance.markDirty();
   }
 }
