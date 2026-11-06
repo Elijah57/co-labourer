@@ -3,6 +3,7 @@ import '../../../models/interaction.dart';
 import '../../../models/person.dart';
 import '../../repository/interaction.dart';
 import '../../repository/person.dart';
+import '../../services/audio_service.dart';
 
 class PersonDetailScreen extends StatefulWidget {
   final Person person;
@@ -15,6 +16,7 @@ class PersonDetailScreen extends StatefulWidget {
 class _PersonDetailScreenState extends State<PersonDetailScreen> {
   final _repo = InteractionsRepository();
   final _peopleRepo = PeopleRepository();
+  final _audio = AudioService();
   late Person _person;
   List<Interaction> _interactions = [];
 
@@ -23,6 +25,12 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     super.initState();
     _person = widget.person;
     _load();
+  }
+
+  @override
+  void dispose() {
+    _audio.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -86,6 +94,45 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       await _repo.updateNote(existing.id, note);
     }
     await _load();
+  }
+
+  Future<void> _recordAudio() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final fileName = await _audio.startRecording();
+    if (fileName == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Microphone permission needed')),
+      );
+      return;
+    }
+    if (!mounted) return;
+
+    final save = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Recording...'),
+        content: const Icon(Icons.mic, size: 48, color: Colors.red),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Stop & save'),
+          ),
+        ],
+      ),
+    );
+
+    if (save == true) {
+      await _audio.stopRecording();
+      await _repo.addInteraction(personId: _person.id, audioPath: fileName);
+      await _load();
+    } else {
+      await _audio.cancelRecording();
+    }
   }
 
   Future<void> _showEditDialog() async {
@@ -183,6 +230,12 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                 _repo.deleteInteraction(item.id);
               },
               child: ListTile(
+                leading: item.audioPath != null
+                    ? IconButton(
+                        icon: const Icon(Icons.play_circle),
+                        onPressed: () => _audio.play(item.audioPath!),
+                      )
+                    : null,
                 title: Text(item.note ?? 'Audio note'),
                 subtitle: Text(_formatDate(item.createdAt)),
                 onTap: () => _showNoteDialog(existing: item),
@@ -190,9 +243,21 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
             );
           },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showNoteDialog(),
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'mic',
+            onPressed: _recordAudio,
+            child: const Icon(Icons.mic),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: 'add',
+            onPressed: () => _showNoteDialog(),
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
     );
   }
