@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'person_edit_screen.dart';
 import '../../../models/interaction.dart';
 import '../../../models/person.dart';
 import '../../repository/interaction.dart';
 import '../../repository/person.dart';
 import '../../services/audio_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/auto_backup.dart';
 import '../../services/photo_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_format.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/interaction_card.dart';
 import '../../widgets/person_avatar.dart';
+import '../../widgets/person_info_card.dart';
 import '../../widgets/photo_source_sheet.dart';
 
 class PersonDetailScreen extends StatefulWidget {
@@ -152,169 +155,20 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     }
   }
 
-  Future<void> _showPhotoOptions({
-    required BuildContext dialogContext,
-    required bool hasPhoto,
-    required Future<void> Function(String?) onPicked,
-  }) async {
-    final action = await showPhotoSourceSheet(
-      dialogContext,
-      hasPhoto: hasPhoto,
-    );
-    if (action == null) return;
-
-    if (action == PhotoAction.remove) {
-      await onPicked(null);
-      return;
-    }
-
-    final source = action == PhotoAction.camera
-        ? ImageSource.camera
-        : ImageSource.gallery;
-    final fileName = await _photos.pickAndSave(source);
-    if (fileName != null) await onPicked(fileName);
-  }
-
-  Future<void> _showEditDialog() async {
-    final firstnameController = TextEditingController(text: _person.firstname);
-    final metAtController = TextEditingController(text: _person.metAt ?? '');
-    final phoneNoController = TextEditingController(text: _person.phoneno ?? '');
-
-    final originalPhoto = _person.photoPath;
-    String? workingPhoto = originalPhoto;
-    bool photoChanged = false;
-    final tempFiles = <String>{};
-
-    Future<void> cleanupTemp({String? keep}) async {
-      for (final name in tempFiles.toList()) {
-        if (name == keep) continue;
-        tempFiles.remove(name);
-        await _photos.delete(name);
-      }
-    }
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          Future<void> changePhoto() async {
-            await _showPhotoOptions(
-              dialogContext: context,
-              hasPhoto: workingPhoto != null,
-              onPicked: (picked) async {
-                if (!context.mounted) {
-                  await _photos.delete(picked);
-                  return;
-                }
-                final previous = workingPhoto;
-                if (previous != null && tempFiles.remove(previous)) {
-                  await _photos.delete(previous);
-                }
-                if (picked != null) tempFiles.add(picked);
-                setDialogState(() {
-                  workingPhoto = picked;
-                  photoChanged = true;
-                });
-              },
-            );
-          }
-
-          return AlertDialog(
-            title: const Text('Edit person'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 12,
-                children: [
-                  GestureDetector(
-                    onTap: changePhoto,
-                    child: PersonAvatar(photoPath: workingPhoto, radius: 40),
-                  ),
-                  TextButton(
-                    onPressed: changePhoto,
-                    child: const Text('Change photo'),
-                  ),
-                  TextField(
-                    controller: firstnameController,
-                    decoration: const InputDecoration(labelText: 'First name'),
-                  ),
-                  TextField(
-                    controller: metAtController,
-                    decoration: const InputDecoration(
-                      labelText: 'Where you met',
-                    ),
-                  ),
-                  TextField(
-                    controller: phoneNoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone (start with + and country code)',
-                    ),
-                  ),
-                  TextField(
-                    controller: phoneNoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone (start with + and country code)',
-                    ),
-                  ),
-                  TextField(
-                    controller: phoneNoController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone (start with + and country code)',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        },
+  Future<void> _editPerson() async {
+    final result = await Navigator.push<Person?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PersonEditScreen(original: _person),
       ),
     );
-
-    final firstname = firstnameController.text.trim();
-    if (saved != true || firstname.isEmpty) {
-      await cleanupTemp();
-      firstnameController.dispose();
-      metAtController.dispose();
-      return;
+    if (result != null && mounted) {
+      final updated = result;
+      await _peopleRepo.updatePerson(updated);
+      await NotificationService.instance.schedule(updated);
+      AutoBackup.instance.markDirty();
+      if (mounted) setState(() => _person = updated);
     }
-
-    final newPhoto = photoChanged ? workingPhoto : originalPhoto;
-    await cleanupTemp(keep: newPhoto);
-
-    final metAt = metAtController.text.trim();
-    final updated = Person(
-      id: _person.id,
-      firstname: firstname,
-      lastname: _person.lastname,
-      othername: _person.othername,
-      phoneno: _person.phoneno,
-      email: _person.email,
-      address: _person.address,
-      photoPath: newPhoto,
-      metAt: metAt.isEmpty ? null : metAt,
-      followUpDate: _person.followUpDate,
-      createdAt: _person.createdAt,
-    );
-    await _peopleRepo.updatePerson(updated);
-    await NotificationService.instance.schedule(updated);
-    if (photoChanged && originalPhoto != null && originalPhoto != newPhoto) {
-      await _photos.delete(originalPhoto);
-    }
-    if (!mounted) return;
-    setState(() => _person = updated);
-
-    firstnameController.dispose();
-    metAtController.dispose();
   }
 
   Widget _buildInteraction(Interaction item) {
@@ -354,18 +208,25 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit person',
-            onPressed: _showEditDialog,
+            onPressed: _editPerson,
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-        children: [
-          _PersonHeader(person: _person),
-          const SizedBox(height: 16),
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: PersonInfoCard(
+                person: _person,
+                avatar: PersonAvatar(photoPath: _person.photoPath, radius: 40),
+                conversationCount: _interactions.length,
+              ),
+            ),
+          ),
           if (_interactions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 24),
+            const SliverFillRemaining(
+              hasScrollBody: false,
               child: EmptyState(
                 icon: Icons.chat_bubble_outline,
                 title: 'No conversations yet',
@@ -373,10 +234,16 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
               ),
             )
           else
-            for (var i = 0; i < _interactions.length; i++) ...[
-              _buildInteraction(_interactions[i]),
-              if (i != _interactions.length - 1) const SizedBox(height: 12),
-            ],
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final item = _interactions[index];
+                  return _buildInteraction(item);
+                },
+                childCount: _interactions.length,
+              ),
+            ),
+          const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
       floatingActionButton: Column(

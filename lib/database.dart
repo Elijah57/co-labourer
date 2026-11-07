@@ -21,7 +21,7 @@ class AppDatabase {
     final dbPath = join(await getDatabasesPath(), 'colaborer.db');
     return openDatabase(
       dbPath,
-      version: 4,
+      version: 7,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -34,6 +34,10 @@ class AppDatabase {
             email TEXT,
             address TEXT,
             photo_path TEXT,
+            birthday TEXT,
+            partner TEXT,
+            intro TEXT,
+            met_on TEXT,
             met_at TEXT,
             follow_up_date TEXT,
             created_at TEXT NOT NULL
@@ -49,6 +53,8 @@ class AppDatabase {
           )
         ''');
         await _createIndexes(db);
+        await _createJournal(db);
+        await _createProfile(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -60,9 +66,35 @@ class AppDatabase {
           await db.execute('ALTER TABLE people ADD COLUMN photo_path TEXT');
         }
         if (oldVersion < 4) {
-          await _createIndexes(db);
+          await db.execute('ALTER TABLE people ADD COLUMN birthday TEXT');
+        }
+        if (oldVersion < 5) {
+          await db.execute('ALTER TABLE people ADD COLUMN partner TEXT');
+          await db.execute('ALTER TABLE people ADD COLUMN intro TEXT');
+          await db.execute('ALTER TABLE people ADD COLUMN met_on TEXT');
+        }
+        if (oldVersion < 6) {
+          await _createJournal(db);
+        }
+        if (oldVersion < 7) {
+          await _createProfile(db);
         }
       },
+    );
+  }
+
+  Future<void> _createJournal(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS journal_entries (
+        id TEXT PRIMARY KEY,
+        note TEXT,
+        audio_path TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_journal_created '
+      'ON journal_entries(created_at)',
     );
   }
 
@@ -71,5 +103,15 @@ class AppDatabase {
       'CREATE INDEX IF NOT EXISTS idx_interactions_person_created '
       'ON interactions(person_id, created_at)',
     );
+  }
+
+  Future<void> _createProfile(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS profile (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        about TEXT
+      )
+    ''');
   }
 }

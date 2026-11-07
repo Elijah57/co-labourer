@@ -2,14 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/person.dart';
 import '../../repository/person.dart';
-import '../../services/app_lock.dart';
-import '../../services/auto_backup.dart';
-import '../../services/backup_service.dart';
-import '../../services/drive_auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/photo_service.dart';
 import '../../theme/app_theme.dart';
-import '../../utils/date_format.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/person_avatar.dart';
 import '../../widgets/person_card.dart';
@@ -28,8 +23,8 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
   final _photos = PhotoService();
   List<Person> _people = [];
   bool _dueOnly = false;
-  bool _busy = false;
-  final _searchController = TextEditingController();
+
+  late final _searchController = TextEditingController();
   bool _searching = false;
   String _query = '';
 
@@ -218,34 +213,6 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                     controller: metAt,
                     decoration: const InputDecoration(labelText: 'Met at'),
                   ),
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.field),
-                      side: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                    title: Text(
-                      followUpDate == null
-                          ? 'Follow-up date'
-                          : 'Follow-up ${formatDayMonth(followUpDate!)}',
-                    ),
-                    trailing: const Icon(Icons.calendar_today_outlined),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: followUpDate ?? DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(
-                          const Duration(days: 3650),
-                        ),
-                      );
-                      if (picked != null) {
-                        setDialogState(() => followUpDate = picked);
-                      }
-                    },
-                  ),
                 ],
               ),
             ),
@@ -291,112 +258,6 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     metAt.dispose();
   }
 
-  Future<void> _backup() async {
-    if (_busy) return;
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _busy = true);
-    try {
-      final client = await DriveAuthService().signIn();
-      final ran = await AutoBackup.instance.run(client);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            ran ? 'Backup complete' : 'A backup is already running',
-          ),
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Backup failed: $e')));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _toggleAutoBackup() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final auto = AutoBackup.instance;
-
-    if (auto.enabled) {
-      await auto.setEnabled(false);
-      setState(() {});
-      return;
-    }
-
-    try {
-      await DriveAuthService().signIn();
-      await auto.setEnabled(true);
-      auto.markDirty();
-      setState(() {});
-      messenger.showSnackBar(const SnackBar(content: Text('Auto backup on')));
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Could not enable: $e')));
-    }
-  }
-
-  String _lastBackupLabel() {
-    final t = AutoBackup.instance.lastBackup;
-    if (t == null) return 'No backup yet';
-    final hh = t.hour.toString().padLeft(2, '0');
-    final mm = t.minute.toString().padLeft(2, '0');
-    return 'Last backup: ${t.day}/${t.month} $hh:$mm';
-  }
-
-  Future<void> _toggleAppLock() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final lock = AppLock.instance;
-    final ok = await lock.setEnabled(!lock.enabled);
-    if (!mounted) return;
-    setState(() {});
-    if (!ok) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Could not change app lock. Make sure your phone has a screen lock set up.',
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _restore() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Restore from Drive?'),
-        content: const Text(
-          'This replaces everything on this phone with your last backup.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Restore'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    setState(() => _busy = true);
-    try {
-      final client = await DriveAuthService().signIn();
-      final found = await BackupService().restore(client);
-      if (found) await _loadPeople();
-      if (found) await NotificationService.instance.rescheduleAll(_people);
-      messenger.showSnackBar(
-        SnackBar(content: Text(found ? 'Restore complete' : 'No backup found')),
-      );
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Restore failed: $e')));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
@@ -422,12 +283,6 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                 onChanged: (value) => setState(() => _query = value),
               )
             : const Text('Co-laborer'),
-        bottom: _busy
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(4),
-                child: LinearProgressIndicator(),
-              )
-            : null,
         actions: [
           IconButton(
             icon: Icon(_searching ? Icons.close : Icons.search),
@@ -449,55 +304,9 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                 _dueOnly ? Icons.filter_alt : Icons.filter_alt_outlined,
                 key: ValueKey(_dueOnly),
               ),
-            ),
+              ),
             tooltip: 'Show only due',
             onPressed: () => setState(() => _dueOnly = !_dueOnly),
-          ),
-          PopupMenuButton<String>(
-            enabled: !_busy,
-            onSelected: (value) {
-              if (value == 'backup') _backup();
-              if (value == 'restore') _restore();
-              if (value == 'auto') _toggleAutoBackup();
-              if (value == 'lock') _toggleAppLock();
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(enabled: false, child: Text(_lastBackupLabel())),
-              PopupMenuItem(
-                value: 'auto',
-                child: ListTile(
-                  leading: Icon(
-                    AutoBackup.instance.enabled
-                        ? Icons.check_box
-                        : Icons.check_box_outline_blank,
-                  ),
-                  title: const Text('Auto backup'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'lock',
-                child: ListTile(
-                  leading: Icon(
-                    AppLock.instance.enabled ? Icons.lock : Icons.lock_open,
-                  ),
-                  title: const Text('App lock'),
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'backup',
-                child: ListTile(
-                  leading: Icon(Icons.cloud_upload),
-                  title: Text('Back up now'),
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'restore',
-                child: ListTile(
-                  leading: Icon(Icons.cloud_download),
-                  title: Text('Restore from Drive'),
-                ),
-              ),
-            ],
           ),
         ],
       ),

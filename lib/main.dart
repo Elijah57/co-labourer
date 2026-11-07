@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'database.dart';
-import 'screens/person/person_list.dart';
+import 'screens/home_screen.dart';
 import 'services/app_lock.dart';
 import 'services/auto_backup.dart';
 import 'services/notification_service.dart';
@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
       builder: (context, child) =>
           LockGate(child: child ?? const SizedBox.shrink()),
       navigatorKey: navigatorKey,
-      home: const PeopleListScreen(),
+      home: const HomeScreen(),
     );
   }
 }

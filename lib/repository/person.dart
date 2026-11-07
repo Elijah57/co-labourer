@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import '../database.dart';
 import '../models/person.dart';
+import '../../utils/birthday.dart';
 import '../services/auto_backup.dart';
 
 class PeopleRepository {
@@ -14,6 +15,10 @@ class PeopleRepository {
     String? email,
     String? address,
     String? photoPath,
+    Birthday? birthday,
+    String? partner,
+    String? intro,
+    DateTime? metOn,
     String? metAt,
     DateTime? followUpDate,
   }) async {
@@ -27,6 +32,10 @@ class PeopleRepository {
       email: email,
       address: address,
       photoPath: photoPath,
+      birthday: birthday,
+      partner: partner,
+      intro: intro,
+      metOn: metOn,
       metAt: metAt,
       followUpDate: followUpDate,
       createdAt: DateTime.now(),
