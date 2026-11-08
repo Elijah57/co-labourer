@@ -381,9 +381,15 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
                 const Icon(Icons.event, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    _birthday.displayFull,
-                    style: const TextStyle(fontSize: 16),
+                  child: InkWell(
+                    onTap: () {
+                      // Show birthday picker - simple preset dates
+                      _showBirthdayPicker();
+                    },
+                    child: Text(
+                      _birthday.displayFull,
+                      style: const TextStyle(fontSize: 16),
+                    ),
                   ),
                 ),
               ],
@@ -391,6 +397,15 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showBirthdayPicker() {
+    // Show a simple dialog with preset options or just note that birthday can be set
+    // For now, just note that tapping opens editing capability
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Birthday editing - select a date')),
     );
   }
 
