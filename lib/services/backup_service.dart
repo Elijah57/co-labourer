@@ -94,13 +94,32 @@ class BackupService {
     if (dbBytes.isEmpty) return false;
 
     final dbPath = p.join(await getDatabasesPath(), _fileName);
+    final safetyCopy = File('$dbPath.bak');
+
+    final current = await AppDatabase.instance.database;
+    await current.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
     await AppDatabase.instance.close();
+
+    if (await File(dbPath).exists()) {
+      await File(dbPath).copy(safetyCopy.path);
+    }
+
     await File(dbPath).writeAsBytes(dbBytes, flush: true);
     for (final suffix in ['-wal', '-shm']) {
       final side = File('$dbPath$suffix');
       if (await side.exists()) await side.delete();
     }
-    await AppDatabase.instance.database;
+
+    try {
+      await AppDatabase.instance.database;
+    } catch (e) {
+      await AppDatabase.instance.close();
+      if (await safetyCopy.exists()) {
+        await safetyCopy.copy(dbPath);
+      }
+      await AppDatabase.instance.database;
+      rethrow;
+    }
 
     final audioDir = await audioDirectory();
     final photoDir = await photoDirectory();
