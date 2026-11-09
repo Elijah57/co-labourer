@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/person.dart';
 import '../../utils/birthday.dart';
+import '../../widgets/birthday_picker.dart';
 
 class PersonEditScreen extends StatefulWidget {
   final Person original;
@@ -23,7 +24,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
   late final TextEditingController _introController;
   late final TextEditingController _metOnController;
   late final TextEditingController _followUpController;
-  late final Birthday _birthday;
+  Birthday? _birthday;
 
   bool _formDirty = false;
   String? _workingPhoto;
@@ -46,17 +47,14 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
     _partnerController = TextEditingController(text: widget.original.partner ?? '');
     _introController = TextEditingController(text: widget.original.intro ?? '');
     _metOnController = widget.original.metOn != null
-        ? TextEditingController(
-            text: widget.original.metOn!.toIso8601String())
+        ? TextEditingController(text: _formatDate(widget.original.metOn!))
         : TextEditingController();
     _followUpController = widget.original.followUpDate != null
         ? TextEditingController(
-            text:
-                '${widget.original.followUpDate!.day}/${widget.original.followUpDate!.month}/${widget.original.followUpDate!.year}')
+            text: _formatDate(widget.original.followUpDate!))
         : TextEditingController();
 
-    _birthday = widget.original.birthday ??
-        Birthday(day: 1, month: 'January', year: null);
+    _birthday = widget.original.birthday;
 
     _setupListeners();
   }
@@ -111,7 +109,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
     final metAt =
         _metAtController.text.trim().isEmpty ? null : _metAtController.text.trim();
     final metOn = _metOnController.text.trim().isNotEmpty
-        ? DateTime.tryParse(_metOnController.text.trim())
+        ? _parseMetOnDate(_metOnController.text.trim())
         : null;
     final followUpDate = _followUpController.text.isNotEmpty
         ? _parseFollowUpDate(_followUpController.text.trim())
@@ -136,6 +134,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
           : null,
       photoPath: _workingPhoto ?? widget.original.photoPath,
       birthday: _birthday,
+      clearBirthday: _birthday == null,
       partner: _partnerController.text.trim().isNotEmpty
           ? _partnerController.text.trim()
           : null,
@@ -144,11 +143,16 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
           : null,
       metAt: metAt != null && metAt.isEmpty ? null : metAt,
       metOn: metOn,
+      clearMetOn: metOn == null,
       followUpDate: followUpDate,
+      clearFollowUpDate: followUpDate == null,
     );
   }
 
   // --- Date parsing ---
+  String _formatDate(DateTime date) =>
+      '${date.day}/${date.month}/${date.year}';
+
   DateTime? _parseFollowUpDate(String text) {
     final parts = text.split('/');
     if (parts.length == 3) {
@@ -352,47 +356,45 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _followUpController,
-                    decoration: const InputDecoration(
-                      labelText: 'Next follow-up date',
+            TextField(
+              controller: _followUpController,
+              readOnly: true,
+              onTap: _pickFollowUpDate,
+              decoration: InputDecoration(
+                labelText: 'Next follow-up date',
+                hintText: 'Select a date',
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_followUpController.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: _clearFollowUpDate,
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.calendar_today_outlined, size: 20),
+                      onPressed: _pickFollowUpDate,
                     ),
-                    onChanged: (_) => setState(() => _formDirty = true),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                // Clear button for follow-up date
-                IconButton(
-                  icon: const Icon(Icons.clear, size: 20),
-                  onPressed: () {
-                    _followUpController.text = '';
-                    setState(() => _formDirty = true);
-                  },
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                // Birthday display
-                const Icon(Icons.event, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      // Show birthday picker - simple preset dates
-                      _showBirthdayPicker();
-                    },
-                    child: Text(
-                      _birthday.displayFull,
-                      style: const TextStyle(fontSize: 16),
+            const Divider(height: 24),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.cake_outlined),
+              title: const Text('Birthday'),
+              subtitle: Text(_birthday?.displayFull ?? 'Not set'),
+              trailing: _birthday == null
+                  ? const Icon(Icons.chevron_right)
+                  : IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () => setState(() {
+                        _birthday = null;
+                        _formDirty = true;
+                      }),
                     ),
-                  ),
-                ),
-              ],
+              onTap: _pickBirthday,
             ),
           ],
         ),
@@ -400,13 +402,37 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
     );
   }
 
-  void _showBirthdayPicker() {
-    // Show a simple dialog with preset options or just note that birthday can be set
-    // For now, just note that tapping opens editing capability
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Birthday editing - select a date')),
+  Future<void> _pickBirthday() async {
+    final picked = await showBirthdayPicker(context, initial: _birthday);
+    if (picked != null && mounted) {
+      setState(() {
+        _birthday = picked;
+        _formDirty = true;
+      });
+    }
+  }
+
+  void _clearFollowUpDate() {
+    setState(() {
+      _followUpController.text = '';
+      _formDirty = true;
+    });
+  }
+
+  Future<void> _pickFollowUpDate() async {
+    final current = _parseFollowUpDate(_followUpController.text.trim());
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
     );
+    if (picked != null && mounted) {
+      setState(() {
+        _followUpController.text = _formatDate(picked);
+        _formDirty = true;
+      });
+    }
   }
 
   // --- Date picking ---

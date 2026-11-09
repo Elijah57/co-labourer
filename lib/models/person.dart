@@ -1,5 +1,14 @@
 import '../../utils/birthday.dart';
 
+Birthday? _birthdayFrom(Object? value) {
+  if (value is! String || value.trim().isEmpty) return null;
+  try {
+    return Birthday.fromText(value);
+  } on FormatException {
+    return null;
+  }
+}
+
 class Person {
   final String id;
   final String firstname;
@@ -63,9 +72,7 @@ class Person {
     email: m['email'] as String?,
     address: m['address'] as String?,
     photoPath: m['photo_path'] as String?,
-    birthday: m['birthday'] == null
-        ? null
-        : Birthday.fromText(m['birthday'] as String),
+    birthday: _birthdayFrom(m['birthday']),
     partner: m['partner'] as String?,
     intro: m['intro'] as String?,
     metOn: m['met_on'] == null
@@ -90,15 +97,18 @@ class Person {
     bool clearPhoto = false,
     String? metAt,
     DateTime? followUpDate,
+    bool clearFollowUpDate = false,
     bool? clearLastname,
     bool? clearOthername,
     bool? clearPhoneno,
     bool? clearEmail,
     bool? clearAddress,
     Birthday? birthday,
+    bool clearBirthday = false,
     String? partner,
     String? intro,
     DateTime? metOn,
+    bool clearMetOn = false,
   }) => Person(
     id: id,
     firstname: firstname ?? this.firstname,
@@ -109,11 +119,12 @@ class Person {
     address: clearAddress == true ? null : (address ?? this.address),
     photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
     metAt: metAt ?? this.metAt,
-    followUpDate: followUpDate ?? this.followUpDate,
-    birthday: birthday ?? this.birthday,
+    followUpDate:
+        clearFollowUpDate ? null : (followUpDate ?? this.followUpDate),
+    birthday: clearBirthday ? null : (birthday ?? this.birthday),
     partner: partner ?? this.partner,
     intro: intro ?? this.intro,
-    metOn: metOn ?? this.metOn,
+    metOn: clearMetOn ? null : (metOn ?? this.metOn),
     createdAt: createdAt,
   );
 }

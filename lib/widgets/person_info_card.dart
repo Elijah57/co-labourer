@@ -49,7 +49,7 @@ class PersonInfoCard extends StatelessWidget {
     add(Icons.place_outlined, 'Where we met', person.metAt);
     // NEW FIELDS (a): date met and partner go here
     add(Icons.phone_outlined, 'Phone', person.phoneno);
-    // NEW FIELDS (b): birthday goes here
+    add(Icons.cake_outlined, 'Birthday', person.birthday?.displayFull);
     add(
       Icons.event_available_outlined,
       'Next follow-up',

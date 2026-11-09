@@ -5,6 +5,8 @@ import '../../repository/person.dart';
 import '../../services/notification_service.dart';
 import '../../services/photo_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/birthday.dart';
+import '../../widgets/birthday_picker.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/person_avatar.dart';
 import '../../widgets/person_card.dart';
@@ -119,6 +121,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     final address = TextEditingController();
     final metAt = TextEditingController();
     DateTime? followUpDate;
+    Birthday? birthday;
     String? workingPhoto;
     final tempFiles = <String>{};
 
@@ -213,6 +216,27 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                     controller: metAt,
                     decoration: const InputDecoration(labelText: 'Met at'),
                   ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.cake_outlined),
+                    title: const Text('Birthday'),
+                    subtitle: Text(birthday?.displayFull ?? 'Not set'),
+                    trailing: birthday == null
+                        ? const Icon(Icons.chevron_right)
+                        : IconButton(
+                            icon: const Icon(Icons.clear, size: 20),
+                            onPressed: () {
+                              setDialogState(() => birthday = null);
+                            },
+                          ),
+                    onTap: () async {
+                      final picked =
+                          await showBirthdayPicker(context, initial: birthday);
+                      if (picked != null && context.mounted) {
+                        setDialogState(() => birthday = picked);
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -241,6 +265,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
         email: _trimmedOrNull(email.text),
         address: _trimmedOrNull(address.text),
         photoPath: workingPhoto,
+        birthday: birthday,
         metAt: _trimmedOrNull(metAt.text),
         followUpDate: followUpDate,
       );
