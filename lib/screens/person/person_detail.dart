@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'person_edit_screen.dart';
@@ -16,6 +18,7 @@ import '../../widgets/interaction_card.dart';
 import '../../widgets/person_avatar.dart';
 import '../../widgets/person_info_card.dart';
 import '../../widgets/photo_source_sheet.dart';
+import '../../widgets/recording_dialog.dart';
 
 class PersonDetailScreen extends StatefulWidget {
   final Person person;
@@ -32,16 +35,22 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   final _photos = PhotoService();
   late Person _person;
   List<Interaction> _interactions = [];
+  String? _playingId;
+  late final StreamSubscription<void> _completeSub;
 
   @override
   void initState() {
     super.initState();
     _person = widget.person;
+    _completeSub = _audio.onComplete.listen((_) {
+      if (mounted) setState(() => _playingId = null);
+    });
     _load();
   }
 
   @override
   void dispose() {
+    _completeSub.cancel();
     _audio.dispose();
     super.dispose();
   }
@@ -117,33 +126,14 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       );
       return;
     }
-    if (!mounted) return;
+    if (!mounted) {
+      await _audio.cancelRecording();
+      return;
+    }
 
-    final save = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Recording...'),
-        content: CircleAvatar(
-          radius: 28,
-          backgroundColor: Theme.of(context).colorScheme.errorContainer,
-          child: Icon(
-            Icons.mic,
-            size: 28,
-            color: Theme.of(context).colorScheme.error,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Stop & save'),
-          ),
-        ],
-      ),
+    final save = await showRecordingDialog(
+      context,
+      levels: _audio.recordingLevels,
     );
 
     if (save == true) {
@@ -171,6 +161,19 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     }
   }
 
+  Future<void> _playInteraction(Interaction item) async {
+    final path = item.audioPath;
+    if (path == null) return;
+    if (_playingId == item.id) {
+      await _audio.stop();
+      if (mounted) setState(() => _playingId = null);
+      return;
+    }
+    await _audio.play(path);
+    if (!mounted) return;
+    setState(() => _playingId = item.id);
+  }
+
   Widget _buildInteraction(Interaction item) {
     final scheme = Theme.of(context).colorScheme;
     return Dismissible(
@@ -187,13 +190,17 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       ),
       confirmDismiss: (_) => _confirmDelete(),
       onDismissed: (_) {
-        setState(() => _interactions.removeWhere((x) => x.id == item.id));
+        setState(() {
+          _interactions.removeWhere((x) => x.id == item.id);
+          if (_playingId == item.id) _playingId = null;
+        });
         _repo.deleteInteraction(item.id);
       },
       child: InteractionCard(
         interaction: item,
+        isPlaying: _playingId == item.id,
         onTap: () => _showNoteDialog(existing: item),
-        onPlay: () => _audio.play(item.audioPath!),
+        onPlay: () => _playInteraction(item),
       ),
     );
   }

@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import '../models/interaction.dart';
 import '../utils/date_format.dart';
+import 'voice_visualizer.dart';
 
 class InteractionCard extends StatelessWidget {
   final Interaction interaction;
   final VoidCallback onTap;
   final VoidCallback onPlay;
+  final bool isPlaying;
 
   const InteractionCard({
     super.key,
     required this.interaction,
     required this.onTap,
     required this.onPlay,
+    this.isPlaying = false,
   });
 
   @override
@@ -34,8 +37,10 @@ class InteractionCard extends StatelessWidget {
               if (isAudio) ...[
                 IconButton(
                   onPressed: onPlay,
-                  tooltip: 'Play audio',
-                  icon: const Icon(Icons.play_arrow_rounded),
+                  tooltip: isPlaying ? 'Stop audio' : 'Play audio',
+                  icon: Icon(
+                    isPlaying ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                  ),
                   style: IconButton.styleFrom(
                     backgroundColor: scheme.surfaceContainerHighest,
                     foregroundColor: scheme.primary,
@@ -74,6 +79,17 @@ class InteractionCard extends StatelessWidget {
                         fontStyle: hasNote ? null : FontStyle.italic,
                       ),
                     ),
+                    if (isPlaying)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: VoiceVisualizer(
+                          active: true,
+                          width: 80,
+                          height: 22,
+                          barCount: 16,
+                          color: scheme.primary,
+                        ),
+                      ),
                   ],
                 ),
               ),

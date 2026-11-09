@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../models/journal_entry.dart';
 import '../../models/profile.dart';
@@ -7,6 +9,8 @@ import '../../services/audio_service.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/note_dialog.dart';
 import '../../widgets/profile_dialog.dart';
+import '../../widgets/recording_dialog.dart';
+import '../../widgets/voice_visualizer.dart';
 
 class MeScreen extends StatefulWidget {
   const MeScreen({super.key});
@@ -28,15 +32,21 @@ class _MeScreenState extends State<MeScreen> {
   Profile? _profile;
   List<JournalEntry> _entries = [];
   bool _loaded = false;
+  String? _playingId;
+  late final StreamSubscription<void> _completeSub;
 
   @override
   void initState() {
     super.initState();
+    _completeSub = _audio.onComplete.listen((_) {
+      if (mounted) setState(() => _playingId = null);
+    });
     _load();
   }
 
   @override
   void dispose() {
+    _completeSub.cancel();
     _audio.dispose();
     super.dispose();
   }
@@ -102,23 +112,9 @@ class _MeScreenState extends State<MeScreen> {
       return;
     }
 
-    final save = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Recording...'),
-        content: const Icon(Icons.mic, size: 48, color: Colors.red),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Stop & save'),
-          ),
-        ],
-      ),
+    final save = await showRecordingDialog(
+      context,
+      levels: _audio.recordingLevels,
     );
 
     if (save == true) {
@@ -205,10 +201,24 @@ class _MeScreenState extends State<MeScreen> {
     );
   }
 
+  Future<void> _playEntry(JournalEntry entry) async {
+    final path = entry.audioPath;
+    if (path == null) return;
+    if (_playingId == entry.id) {
+      await _audio.stop();
+      if (mounted) setState(() => _playingId = null);
+      return;
+    }
+    await _audio.play(path);
+    if (!mounted) return;
+    setState(() => _playingId = entry.id);
+  }
+
   Widget _entryCard(JournalEntry e) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final hasAudio = e.audioPath != null;
+    final isPlaying = _playingId == e.id;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -226,7 +236,10 @@ class _MeScreenState extends State<MeScreen> {
         ),
         confirmDismiss: (_) => _confirmDelete(),
         onDismissed: (_) {
-          setState(() => _entries.removeWhere((x) => x.id == e.id));
+          setState(() {
+            _entries.removeWhere((x) => x.id == e.id);
+            if (_playingId == e.id) _playingId = null;
+          });
           _journal.delete(e.id);
         },
         child: Material(
@@ -245,9 +258,11 @@ class _MeScreenState extends State<MeScreen> {
                 children: [
                   if (hasAudio) ...[
                     IconButton.filledTonal(
-                      icon: const Icon(Icons.play_arrow),
-                      tooltip: 'Play recording',
-                      onPressed: () => _audio.play(e.audioPath!),
+                      icon: Icon(
+                        isPlaying ? Icons.stop_rounded : Icons.play_arrow,
+                      ),
+                      tooltip: isPlaying ? 'Stop recording' : 'Play recording',
+                      onPressed: () => _playEntry(e),
                     ),
                     const SizedBox(width: 12),
                   ],
@@ -270,6 +285,17 @@ class _MeScreenState extends State<MeScreen> {
                                 )
                               : text.bodyLarge,
                         ),
+                        if (isPlaying)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: VoiceVisualizer(
+                              active: true,
+                              width: 80,
+                              height: 22,
+                              barCount: 16,
+                              color: scheme.primary,
+                            ),
+                          ),
                       ],
                     ),
                   ),
