@@ -13,6 +13,7 @@ import '../../services/auto_backup.dart';
 import '../../services/photo_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_format.dart';
+import '../../widgets/contact_buttons.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/interaction_card.dart';
 import '../../widgets/person_avatar.dart';
@@ -208,6 +209,7 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final phone = _person.phoneno?.trim();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Person'),
@@ -224,10 +226,18 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             sliver: SliverToBoxAdapter(
-              child: PersonInfoCard(
-                person: _person,
-                avatar: PersonAvatar(photoPath: _person.photoPath, radius: 40),
-                conversationCount: _interactions.length,
+              child: Column(
+                children: [
+                  PersonInfoCard(
+                    person: _person,
+                    avatar: PersonAvatar(photoPath: _person.photoPath, radius: 40),
+                    conversationCount: _interactions.length,
+                  ),
+                  if (phone != null && phone.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    ContactButtons(phoneNo: phone),
+                  ],
+                ],
               ),
             ),
           ),
