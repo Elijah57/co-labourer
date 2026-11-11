@@ -96,6 +96,7 @@ class Person {
     String? photoPath,
     bool clearPhoto = false,
     String? metAt,
+    bool clearMetAt = false,
     DateTime? followUpDate,
     bool clearFollowUpDate = false,
     bool? clearLastname,
@@ -106,7 +107,9 @@ class Person {
     Birthday? birthday,
     bool clearBirthday = false,
     String? partner,
+    bool clearPartner = false,
     String? intro,
+    bool clearIntro = false,
     DateTime? metOn,
     bool clearMetOn = false,
   }) => Person(
@@ -118,12 +121,12 @@ class Person {
     email: clearEmail == true ? null : (email ?? this.email),
     address: clearAddress == true ? null : (address ?? this.address),
     photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
-    metAt: metAt ?? this.metAt,
+    metAt: clearMetAt ? null : (metAt ?? this.metAt),
     followUpDate:
         clearFollowUpDate ? null : (followUpDate ?? this.followUpDate),
     birthday: clearBirthday ? null : (birthday ?? this.birthday),
-    partner: partner ?? this.partner,
-    intro: intro ?? this.intro,
+    partner: clearPartner ? null : (partner ?? this.partner),
+    intro: clearIntro ? null : (intro ?? this.intro),
     metOn: clearMetOn ? null : (metOn ?? this.metOn),
     createdAt: createdAt,
   );

@@ -106,8 +106,14 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
   }
 
   Person _buildPerson() {
-    final metAt =
-        _metAtController.text.trim().isEmpty ? null : _metAtController.text.trim();
+    final lastname = _lastnameController.text.trim();
+    final othername = _othernameController.text.trim();
+    final phoneno = _phonenoController.text.trim();
+    final email = _emailController.text.trim();
+    final address = _addressController.text.trim();
+    final partner = _partnerController.text.trim();
+    final intro = _introController.text.trim();
+    final metAt = _metAtController.text.trim();
     final metOn = _metOnController.text.trim().isNotEmpty
         ? _parseMetOnDate(_metOnController.text.trim())
         : null;
@@ -117,31 +123,25 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
 
     return widget.original.copyWith(
       firstname: _firstnameController.text.trim(),
-      lastname: _lastnameController.text.isNotEmpty
-          ? _lastnameController.text
-          : null,
-      othername: _othernameController.text.isNotEmpty
-          ? _othernameController.text
-          : null,
-      phoneno: _phonenoController.text.trim().isNotEmpty
-          ? _phonenoController.text.trim()
-          : null,
-      email: _emailController.text.trim().isNotEmpty
-          ? _emailController.text.trim()
-          : null,
-      address: _addressController.text.trim().isNotEmpty
-          ? _addressController.text.trim()
-          : null,
+      lastname: lastname.isEmpty ? null : lastname,
+      clearLastname: lastname.isEmpty,
+      othername: othername.isEmpty ? null : othername,
+      clearOthername: othername.isEmpty,
+      phoneno: phoneno.isEmpty ? null : phoneno,
+      clearPhoneno: phoneno.isEmpty,
+      email: email.isEmpty ? null : email,
+      clearEmail: email.isEmpty,
+      address: address.isEmpty ? null : address,
+      clearAddress: address.isEmpty,
       photoPath: _workingPhoto ?? widget.original.photoPath,
       birthday: _birthday,
       clearBirthday: _birthday == null,
-      partner: _partnerController.text.trim().isNotEmpty
-          ? _partnerController.text.trim()
-          : null,
-      intro: _introController.text.trim().isNotEmpty
-          ? _introController.text.trim()
-          : null,
-      metAt: metAt != null && metAt.isEmpty ? null : metAt,
+      partner: partner.isEmpty ? null : partner,
+      clearPartner: partner.isEmpty,
+      intro: intro.isEmpty ? null : intro,
+      clearIntro: intro.isEmpty,
+      metAt: metAt.isEmpty ? null : metAt,
+      clearMetAt: metAt.isEmpty,
       metOn: metOn,
       clearMetOn: metOn == null,
       followUpDate: followUpDate,
