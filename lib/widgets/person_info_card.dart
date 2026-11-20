@@ -75,7 +75,11 @@ class PersonInfoCard extends StatelessWidget {
             Center(child: avatar),
             const SizedBox(height: 12),
             Text(
-              person.firstname,
+              [person.firstname, person.lastname]
+                  .whereType<String>()
+                  .map((part) => part.trim())
+                  .where((part) => part.isNotEmpty)
+                  .join(' '),
               textAlign: TextAlign.center,
               style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
