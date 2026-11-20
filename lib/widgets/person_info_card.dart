@@ -47,7 +47,12 @@ class PersonInfoCard extends StatelessWidget {
     }
 
     add(Icons.place_outlined, 'Where we met', person.metAt);
-    // NEW FIELDS (a): date met and partner go here
+    add(
+      Icons.event_outlined,
+      'Date met',
+      person.metOn == null ? null : _date(person.metOn!),
+    );
+    // NEW FIELDS (a): partner goes here
     add(Icons.phone_outlined, 'Phone', person.phoneno);
     add(Icons.cake_outlined, 'Birthday', person.birthday?.displayFull);
     add(

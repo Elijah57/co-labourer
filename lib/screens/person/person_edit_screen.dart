@@ -318,7 +318,19 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
             const SizedBox(height: 8),
             ListTile(
               title: const Text('Date met'),
-              trailing: const Icon(Icons.calendar_today_outlined),
+              subtitle: Text(
+                _metOnController.text.isNotEmpty
+                    ? _metOnController.text
+                    : 'Not set',
+              ),
+              trailing: _metOnController.text.isEmpty
+                  ? const Icon(Icons.calendar_today_outlined)
+                  : IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      tooltip: 'Clear date met',
+                      onPressed: () =>
+                          setState(() => _metOnController.text = ''),
+                    ),
               onTap: _pickMetOnDate,
             ),
             ListTile(
@@ -361,6 +373,21 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
               ),
               keyboardType: TextInputType.phone,
               onChanged: (_) => setState(() => _formDirty = true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: 'Email'),
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _addressController,
+              decoration: const InputDecoration(labelText: 'Address'),
+              keyboardType: TextInputType.streetAddress,
+              textCapitalization: TextCapitalization.words,
+              maxLines: 2,
+              minLines: 1,
             ),
           ],
         ),
