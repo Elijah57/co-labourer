@@ -41,18 +41,21 @@ class PersonInfoCard extends StatelessWidget {
 
     final rows = <Widget>[];
     void add(IconData icon, String label, String? value,
-        {bool highlight = false}) {
-      if (value == null || value.trim().isEmpty) return;
+        {bool highlight = false, bool alwaysShow = false}) {
+      final empty = value == null || value.trim().isEmpty;
+      if (empty && !alwaysShow) return;
       rows.add(_InfoRow(
         icon: icon,
         label: label,
-        value: value,
+        value: empty ? 'Not set' : value,
         highlight: highlight,
+        muted: empty,
       ));
     }
 
-    add(Icons.wc_outlined, 'Sex', person.sex?.label);
-    add(Icons.work_outline, 'Occupation', person.occupation);
+    add(Icons.wc_outlined, 'Sex', person.sex?.label, alwaysShow: true);
+    add(Icons.work_outline, 'Occupation', person.occupation,
+        alwaysShow: true);
     add(Icons.place_outlined, 'Where we met', person.metAt);
     add(
       Icons.event_outlined,
@@ -120,12 +123,14 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
   final bool highlight;
+  final bool muted;
 
   const _InfoRow({
     required this.icon,
     required this.label,
     required this.value,
     this.highlight = false,
+    this.muted = false,
   });
 
   @override
@@ -153,6 +158,8 @@ class _InfoRow extends StatelessWidget {
                   value,
                   style: text.bodyLarge?.copyWith(
                     fontWeight: highlight ? FontWeight.w600 : null,
+                    color: muted ? scheme.onSurfaceVariant : null,
+                    fontStyle: muted ? FontStyle.italic : null,
                   ),
                 ),
               ],
