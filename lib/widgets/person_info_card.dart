@@ -54,6 +54,8 @@ class PersonInfoCard extends StatelessWidget {
     );
     // NEW FIELDS (a): partner goes here
     add(Icons.phone_outlined, 'Phone', person.phoneno);
+    add(Icons.email_outlined, 'Email', person.email);
+    add(Icons.home_outlined, 'Address', person.address);
     add(Icons.cake_outlined, 'Birthday', person.birthday?.displayFull);
     add(
       Icons.event_available_outlined,
