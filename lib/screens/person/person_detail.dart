@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'person_edit_screen.dart';
 import '../../../models/interaction.dart';
 import '../../../models/person.dart';
 import '../../repository/interaction.dart';
 import '../../repository/person.dart';
 import '../../repository/tag.dart';
+import '../../repositories/profile_repository.dart';
 import '../../utils/activity.dart';
 import '../../services/audio_service.dart';
 import '../../services/notification_service.dart';
@@ -15,6 +17,7 @@ import '../../services/auto_backup.dart';
 import '../../services/photo_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_format.dart';
+import '../../utils/person_share.dart';
 import '../../widgets/contact_buttons.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/interaction_card.dart';
@@ -172,6 +175,22 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
     await _load();
   }
 
+  Future<void> _sharePerson() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final profile = await ProfileRepository().get();
+      final text = formatPersonForShare(_person, myName: profile?.name);
+      await SharePlus.instance.share(
+        ShareParams(text: text, subject: shareFullName(_person)),
+      );
+    } catch (e) {
+      debugPrint('Share failed: $e');
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open the share menu')),
+      );
+    }
+  }
+
   Future<void> _playInteraction(Interaction item) async {
     final path = item.audioPath;
     if (path == null) return;
@@ -224,6 +243,11 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       appBar: AppBar(
         title: const Text('Person'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: 'Share person',
+            onPressed: _sharePerson,
+          ),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit person',
