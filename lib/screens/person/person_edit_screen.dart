@@ -176,16 +176,40 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
     Navigator.of(context).pop(updated);
   }
 
+  Future<bool> _confirmDiscard() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('Your edits to this person will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep editing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _handleBlockedPop() async {
+    final discard = await _confirmDiscard();
+    if (discard && mounted) Navigator.of(context).pop();
+  }
+
   // --- Build ---
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return PopScope(
       canPop: !_formDirty,
-      onPopInvoked: (didPop) {
-        if (!_formDirty) return;
-        // Show discard confirmation - but since canPop already handles it,
-        // we just allow the pop and the user can press back again if needed
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBlockedPop();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -471,13 +495,15 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
 
   Future<void> _showPartnerSelector() async {
     if (!mounted) return;
-    await showDialog(
+    final controller = TextEditingController(text: _partnerController.text);
+    final result = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Partner name'),
         content: TextField(
-          onChanged: (v) =>
-              setState(() => _partnerController.text = v.trim()),
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
           decoration: const InputDecoration(labelText: 'Enter partner name'),
         ),
         actions: [
@@ -486,11 +512,14 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: const Text('Save'),
           ),
         ],
       ),
     );
+    if (result == null || !mounted) return;
+    if (result == _partnerController.text) return;
+    setState(() => _partnerController.text = result);
   }
 }
