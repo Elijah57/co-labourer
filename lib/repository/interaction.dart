@@ -35,6 +35,21 @@ class InteractionsRepository {
     return rows.map(Interaction.fromMap).toList();
   }
 
+  /// Most recent conversation time for every person who has one.
+  Future<Map<String, DateTime>> getLastByPerson() async {
+    final db = await AppDatabase.instance.database;
+    final rows = await db.rawQuery(
+      'SELECT person_id, MAX(created_at) AS last '
+      'FROM interactions GROUP BY person_id',
+    );
+    final result = <String, DateTime>{};
+    for (final row in rows) {
+      final last = DateTime.tryParse(row['last'] as String? ?? '');
+      if (last != null) result[row['person_id'] as String] = last;
+    }
+    return result;
+  }
+
   Future<void> updateNote(String id, String note) async {
     final db = await AppDatabase.instance.database;
     await db.update(

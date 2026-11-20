@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import '../models/person.dart';
 import '../theme/app_theme.dart';
+import 'tag_badges.dart';
 
 class PersonInfoCard extends StatelessWidget {
   final Person person;
   final Widget avatar;
   final int? conversationCount;
+  final bool isActive;
+  final List<String> tags;
 
   const PersonInfoCard({
     super.key,
     required this.person,
     required this.avatar,
     this.conversationCount,
+    this.isActive = false,
+    this.tags = const [],
   });
 
   static const _months = [
@@ -90,6 +95,14 @@ class PersonInfoCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: text.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
+            if (isActive || tags.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              TagBadges(
+                isActive: isActive,
+                tags: tags,
+                alignment: WrapAlignment.center,
+              ),
+            ],
             if (rows.isNotEmpty) const Divider(height: 28),
             ...rows,
             // NEW FIELDS (c): the intro block goes here

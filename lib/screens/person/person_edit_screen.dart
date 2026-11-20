@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/person.dart';
+import '../../models/tag.dart';
+import '../../repository/tag.dart';
 import '../../utils/birthday.dart';
 import '../../widgets/birthday_picker.dart';
 
@@ -29,6 +31,13 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
   bool _formDirty = false;
   String? _workingPhoto;
 
+  final _tagsRepo = TagsRepository();
+  List<Tag> _allTags = [];
+  Set<String> _initialTagIds = {};
+  final Set<String> _selectedTagIds = {};
+  // New tag names typed in this session; created only when the user saves.
+  final List<String> _pendingTagNames = [];
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +66,29 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
     _birthday = widget.original.birthday;
 
     _setupListeners();
+    _loadTags();
+  }
+
+  Future<void> _loadTags() async {
+    final all = await _tagsRepo.getAllTags();
+    final mine = await _tagsRepo.getForPerson(widget.original.id);
+    if (!mounted) return;
+    setState(() {
+      _allTags = all;
+      _initialTagIds = mine.map((t) => t.id).toSet();
+      _selectedTagIds.addAll(_initialTagIds);
+    });
+  }
+
+  Future<void> _saveTags() async {
+    final ids = {..._selectedTagIds};
+    for (final name in _pendingTagNames) {
+      ids.add((await _tagsRepo.getOrCreate(name)).id);
+    }
+    final unchanged = ids.length == _initialTagIds.length &&
+        ids.containsAll(_initialTagIds);
+    if (unchanged) return;
+    await _tagsRepo.setPersonTags(widget.original.id, ids);
   }
 
   void _setupListeners() {
@@ -172,6 +204,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
   Future<void> _saveAndPop() async {
     if (!_canSave()) return;
     final updated = _buildPerson();
+    await _saveTags();
     if (!mounted) return;
     Navigator.of(context).pop(updated);
   }
@@ -247,6 +280,8 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
                 _buildContact(),
                 const SizedBox(height: 16),
                 _buildFollowUpBirthday(),
+                const SizedBox(height: 16),
+                _buildTags(),
                 const SizedBox(height: 24),
               ],
             ),
@@ -451,6 +486,134 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildTags() {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tags', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Long-press a tag to delete it for everyone.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in _allTags)
+                  GestureDetector(
+                    onLongPress: () => _deleteTag(tag),
+                    child: FilterChip(
+                      label: Text(tag.name),
+                      selected: _selectedTagIds.contains(tag.id),
+                      onSelected: (v) => setState(() {
+                        v
+                            ? _selectedTagIds.add(tag.id)
+                            : _selectedTagIds.remove(tag.id);
+                        _formDirty = true;
+                      }),
+                    ),
+                  ),
+                for (final name in _pendingTagNames)
+                  FilterChip(
+                    label: Text(name),
+                    selected: true,
+                    onSelected: (_) => setState(() {
+                      _pendingTagNames.remove(name);
+                      _formDirty = true;
+                    }),
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 18),
+                  label: const Text('New tag'),
+                  onPressed: _addTag,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addTag() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('New tag'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Tag name'),
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || !mounted) return;
+
+    final lower = name.toLowerCase();
+    setState(() {
+      final existing =
+          _allTags.where((t) => t.name.toLowerCase() == lower).firstOrNull;
+      if (existing != null) {
+        _selectedTagIds.add(existing.id);
+      } else if (!_pendingTagNames.any((n) => n.toLowerCase() == lower)) {
+        _pendingTagNames.add(name);
+      }
+      _formDirty = true;
+    });
+  }
+
+  Future<void> _deleteTag(Tag tag) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete "${tag.name}"?'),
+        content: const Text(
+          'This removes the tag from everyone who has it. '
+          'People and conversations are not affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _tagsRepo.deleteTag(tag.id);
+    if (!mounted) return;
+    setState(() {
+      _allTags.removeWhere((t) => t.id == tag.id);
+      _selectedTagIds.remove(tag.id);
+      _initialTagIds = {..._initialTagIds}..remove(tag.id);
+    });
   }
 
   Future<void> _pickBirthday() async {

@@ -87,7 +87,7 @@ Settings is the gear icon in the Home app bar.
 
 ## Database
 
-`lib/database.dart` is the only SQLite owner. It currently uses database version **7** and the file `colaborer.db`.
+`lib/database.dart` is the only SQLite owner. It currently uses database version **8** and the file `colaborer.db`.
 
 `PRAGMA foreign_keys = ON` is enabled. Interactions use `ON DELETE CASCADE` from `people`.
 
@@ -97,6 +97,8 @@ Schema:
 - `interactions`: `id`, `person_id`, `note`, `audio_path`, `created_at`.
 - `journal_entries`: `id`, `note`, `audio_path`, `created_at`.
 - `profile`: single-row key/value-ish shape: `id`, `name`, `about`.
+- `tags` (v8): `id`, `name` (unique, case-insensitive), `created_at`.
+- `person_tags` (v8): `person_id`, `tag_id`; both cascade on delete.
 
 Conventions:
 
@@ -105,6 +107,7 @@ Conventions:
 - Store photo/audio filenames in SQLite, not absolute paths.
 - Audio files live in `<app documents>/audio/`; photos live in `<app documents>/photos/`.
 - Repositories call `AutoBackup.instance.markDirty()` after mutations. Keep this behavior when adding writes.
+- Older app versions have no `onDowngrade`: opening a newer DB (e.g. after a Drive restore) leaves new tables in place and resets `user_version`, so the upgrade runs again later. Every migration must be idempotent (`IF NOT EXISTS`).
 - Migrations are additive and versioned. Never change the schema or version without a migration that preserves existing user data.
 - `Person.fromMap` tolerates corrupt/legacy birthday text by loading it as `null`. Do not turn that into a crash.
 
@@ -123,7 +126,7 @@ Do not replace this format without a migration and legacy-data handling. `Person
 - Material 3, light/dark via system setting.
 - `buildTheme` is the design source of truth. Primary palette: deep indigo and wheat/gold. Cards are borderless-looking with outlines; radii are 16/20/12; app bars are indigo.
 - Keep screens consistent with existing `Scaffold`/`AppBar`/card patterns.
-- People list: searchable by name and `metAt`; due-only filter; swipe-to-delete with confirmation; FAB to add.
+- People list: searchable by name and `metAt`; due-only filter; Active (conversation in the last 30 days, `lib/utils/activity.dart`) and tag filter chips; swipe-to-delete with confirmation; FAB to add.
 - Person detail: info card, interaction list, swipe-to-delete, mic FAB, "Log conversation" FAB.
 - Person edit: birthday is chosen with `showBirthdayPicker`; follow-up is read-only and date-picked.
 - Me: profile dialog opens automatically when no profile exists; journal entries can be written or recorded; swipe-to-delete.

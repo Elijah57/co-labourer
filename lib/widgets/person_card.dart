@@ -3,11 +3,14 @@ import '../models/person.dart';
 import '../theme/app_theme.dart';
 import '../utils/date_format.dart';
 import 'person_avatar.dart';
+import 'tag_badges.dart';
 
 class PersonCard extends StatelessWidget {
   final Person person;
   final String fullName;
   final bool isDue;
+  final bool isActive;
+  final List<String> tags;
   final VoidCallback onTap;
 
   const PersonCard({
@@ -15,6 +18,8 @@ class PersonCard extends StatelessWidget {
     required this.person,
     required this.fullName,
     required this.isDue,
+    this.isActive = false,
+    this.tags = const [],
     required this.onTap,
   });
 
@@ -78,6 +83,10 @@ class PersonCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (isActive || tags.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      TagBadges(isActive: isActive, tags: tags),
+                    ],
                   ],
                 ),
               ),

@@ -7,6 +7,8 @@ import '../../../models/interaction.dart';
 import '../../../models/person.dart';
 import '../../repository/interaction.dart';
 import '../../repository/person.dart';
+import '../../repository/tag.dart';
+import '../../utils/activity.dart';
 import '../../services/audio_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/auto_backup.dart';
@@ -32,10 +34,12 @@ class PersonDetailScreen extends StatefulWidget {
 class _PersonDetailScreenState extends State<PersonDetailScreen> {
   final _repo = InteractionsRepository();
   final _peopleRepo = PeopleRepository();
+  final _tagsRepo = TagsRepository();
   final _audio = AudioService();
   final _photos = PhotoService();
   late Person _person;
   List<Interaction> _interactions = [];
+  List<String> _tagNames = [];
   String? _playingId;
   late final StreamSubscription<void> _completeSub;
 
@@ -58,8 +62,12 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
 
   Future<void> _load() async {
     final items = await _repo.getForPerson(_person.id);
+    final tags = await _tagsRepo.getForPerson(_person.id);
     if (!mounted) return;
-    setState(() => _interactions = items);
+    setState(() {
+      _interactions = items;
+      _tagNames = tags.map((t) => t.name).toList();
+    });
   }
 
   Future<bool> _confirmDelete() async {
@@ -160,6 +168,8 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
       AutoBackup.instance.markDirty();
       if (mounted) setState(() => _person = updated);
     }
+    // Tags are saved by the edit screen itself, so reload them either way.
+    await _load();
   }
 
   Future<void> _playInteraction(Interaction item) async {
@@ -232,6 +242,12 @@ class _PersonDetailScreenState extends State<PersonDetailScreen> {
                     person: _person,
                     avatar: PersonAvatar(photoPath: _person.photoPath, radius: 40),
                     conversationCount: _interactions.length,
+                    isActive: isActive(
+                      _interactions.isEmpty
+                          ? null
+                          : _interactions.first.createdAt,
+                    ),
+                    tags: _tagNames,
                   ),
                   if (phone != null && phone.isNotEmpty) ...[
                     const SizedBox(height: 12),

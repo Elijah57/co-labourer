@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/person.dart';
+import '../../models/tag.dart';
+import '../../repository/interaction.dart';
 import '../../repository/person.dart';
+import '../../repository/tag.dart';
 import '../../services/notification_service.dart';
 import '../../services/photo_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/activity.dart';
 import '../../utils/birthday.dart';
 import '../../widgets/birthday_picker.dart';
 import '../../widgets/empty_state.dart';
@@ -22,9 +26,17 @@ class PeopleListScreen extends StatefulWidget {
 
 class _PeopleListScreenState extends State<PeopleListScreen> {
   final _repo = PeopleRepository();
+  final _tagsRepo = TagsRepository();
+  final _interactionsRepo = InteractionsRepository();
   final _photos = PhotoService();
   List<Person> _people = [];
   bool _dueOnly = false;
+
+  List<Tag> _tags = [];
+  Map<String, Set<String>> _tagIdsByPerson = {};
+  Map<String, DateTime> _lastByPerson = {};
+  bool _activeOnly = false;
+  String? _tagFilter;
 
   late final _searchController = TextEditingController();
   bool _searching = false;
@@ -32,6 +44,13 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
 
   List<Person> get _visible {
     var list = _dueOnly ? _people.where(_isDue).toList() : _people;
+    if (_activeOnly) list = list.where(_isActive).toList();
+    final tagFilter = _tagFilter;
+    if (tagFilter != null) {
+      list = list
+          .where((p) => _tagIdsByPerson[p.id]?.contains(tagFilter) ?? false)
+          .toList();
+    }
     final q = _query.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list
@@ -43,6 +62,23 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
           .toList();
     }
     return list;
+  }
+
+  bool _isActive(Person person) => isActive(_lastByPerson[person.id]);
+
+  List<String> _tagNamesFor(Person person) {
+    final ids = _tagIdsByPerson[person.id];
+    if (ids == null || ids.isEmpty) return const [];
+    return [
+      for (final tag in _tags)
+        if (ids.contains(tag.id)) tag.name,
+    ];
+  }
+
+  /// Only tags that at least one person has, so unused ones don't clutter.
+  List<Tag> get _usedTags {
+    final used = <String>{for (final ids in _tagIdsByPerson.values) ...ids};
+    return _tags.where((t) => used.contains(t.id)).toList();
   }
 
   bool _isDue(Person person) {
@@ -97,6 +133,9 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
 
   Future<void> _loadPeople() async {
     final people = await _repo.getAllPeople();
+    final tags = await _tagsRepo.getAllTags();
+    final tagIdsByPerson = await _tagsRepo.getTagIdsByPerson();
+    final lastByPerson = await _interactionsRepo.getLastByPerson();
     people.sort((a, b) {
       final aDue = _isDue(a);
       final bDue = _isDue(b);
@@ -104,7 +143,44 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
       return b.createdAt.compareTo(a.createdAt);
     });
     if (!mounted) return;
-    setState(() => _people = people);
+    setState(() {
+      _people = people;
+      _tags = tags;
+      _tagIdsByPerson = tagIdsByPerson;
+      _lastByPerson = lastByPerson;
+      if (_tagFilter != null && !_usedTags.any((t) => t.id == _tagFilter)) {
+        _tagFilter = null;
+      }
+    });
+  }
+
+  Widget _buildFilters() {
+    final tags = _usedTags;
+    return SizedBox(
+      height: 52,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+        children: [
+          FilterChip(
+            avatar: const Icon(Icons.bolt, size: 18),
+            label: const Text('Active'),
+            tooltip: 'Talked in the last 30 days',
+            selected: _activeOnly,
+            onSelected: (v) => setState(() => _activeOnly = v),
+          ),
+          for (final tag in tags) ...[
+            const SizedBox(width: 8),
+            FilterChip(
+              label: Text(tag.name),
+              selected: _tagFilter == tag.id,
+              onSelected: (v) =>
+                  setState(() => _tagFilter = v ? tag.id : null),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   String? _trimmedOrNull(String value) {
@@ -335,20 +411,30 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
           ),
         ],
       ),
-      body: visible.isEmpty
+      body: Column(
+        children: [
+          if (_people.isNotEmpty) _buildFilters(),
+          Expanded(
+            child: visible.isEmpty
           ? EmptyState(
               icon: _query.trim().isNotEmpty
                   ? Icons.search_off
+                  : _activeOnly || _tagFilter != null
+                  ? Icons.filter_alt_off_outlined
                   : _dueOnly
                   ? Icons.check_circle_outline
                   : Icons.people_outline,
               title: _query.trim().isNotEmpty
                   ? 'No matches'
+                  : _activeOnly || _tagFilter != null
+                  ? 'No one matches'
                   : _dueOnly
                   ? 'No follow-ups due'
                   : 'No one here yet',
               message: _query.trim().isNotEmpty
                   ? 'Try a different name or place.'
+                  : _activeOnly || _tagFilter != null
+                  ? 'Try turning off a filter.'
                   : _dueOnly
                   ? 'Everyone is up to date.'
                   : 'Tap + to add someone you meet, then log what you talk about.',
@@ -384,6 +470,8 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                     person: person,
                     fullName: _fullName(person),
                     isDue: _isDue(person),
+                    isActive: _isActive(person),
+                    tags: _tagNamesFor(person),
                     onTap: () async {
                       await Navigator.push(
                         context,
@@ -397,6 +485,9 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                 );
               },
             ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddDialog,
         icon: const Icon(Icons.add),

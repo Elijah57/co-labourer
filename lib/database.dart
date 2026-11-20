@@ -21,7 +21,7 @@ class AppDatabase {
     final dbPath = join(await getDatabasesPath(), 'colaborer.db');
     return openDatabase(
       dbPath,
-      version: 7,
+      version: 8,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -55,6 +55,7 @@ class AppDatabase {
         await _createIndexes(db);
         await _createJournal(db);
         await _createProfile(db);
+        await _createTags(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -78,6 +79,9 @@ class AppDatabase {
         }
         if (oldVersion < 7) {
           await _createProfile(db);
+        }
+        if (oldVersion < 8) {
+          await _createTags(db);
         }
       },
     );
@@ -113,5 +117,28 @@ class AppDatabase {
         about TEXT
       )
     ''');
+  }
+
+  // Additive and idempotent: an older app version that opens a v8 database
+  // leaves these tables in place and resets user_version to 7, so this can
+  // run again later on tables that already exist.
+  Future<void> _createTags(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS tags (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS person_tags (
+        person_id TEXT NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+        tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+        PRIMARY KEY (person_id, tag_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_person_tags_tag ON person_tags(tag_id)',
+    );
   }
 }
