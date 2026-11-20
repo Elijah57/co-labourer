@@ -57,7 +57,8 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
           .where(
             (p) =>
                 _fullName(p).toLowerCase().contains(q) ||
-                (p.metAt ?? '').toLowerCase().contains(q),
+                (p.metAt ?? '').toLowerCase().contains(q) ||
+                (p.occupation ?? '').toLowerCase().contains(q),
           )
           .toList();
     }
@@ -192,12 +193,14 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     final firstname = TextEditingController();
     final lastname = TextEditingController();
     final othername = TextEditingController();
+    final occupation = TextEditingController();
     final phoneno = TextEditingController();
     final email = TextEditingController();
     final address = TextEditingController();
     final metAt = TextEditingController();
     DateTime? followUpDate;
     Birthday? birthday;
+    Sex? sex;
     String? workingPhoto;
     final tempFiles = <String>{};
 
@@ -273,6 +276,28 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                     decoration: const InputDecoration(labelText: 'Other name'),
                   ),
                   TextField(
+                    controller: occupation,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(labelText: 'Occupation'),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('Sex'),
+                        for (final option in Sex.values)
+                          ChoiceChip(
+                            label: Text(option.label),
+                            selected: sex == option,
+                            onSelected: (v) =>
+                                setDialogState(() => sex = v ? option : null),
+                          ),
+                      ],
+                    ),
+                  ),
+                  TextField(
                     controller: phoneno,
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
@@ -337,6 +362,8 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
         firstname: firstname.text.trim(),
         lastname: _trimmedOrNull(lastname.text),
         othername: _trimmedOrNull(othername.text),
+        occupation: _trimmedOrNull(occupation.text),
+        sex: sex,
         phoneno: _trimmedOrNull(phoneno.text),
         email: _trimmedOrNull(email.text),
         address: _trimmedOrNull(address.text),
@@ -353,6 +380,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
     firstname.dispose();
     lastname.dispose();
     othername.dispose();
+    occupation.dispose();
     phoneno.dispose();
     email.dispose();
     address.dispose();
@@ -374,7 +402,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                 decoration: const InputDecoration(
                   filled: false,
                   isDense: true,
-                  hintText: 'Search people',
+                  hintText: 'Search name, place or occupation',
                   hintStyle: TextStyle(color: Colors.white70),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
@@ -432,7 +460,7 @@ class _PeopleListScreenState extends State<PeopleListScreen> {
                   ? 'No follow-ups due'
                   : 'No one here yet',
               message: _query.trim().isNotEmpty
-                  ? 'Try a different name or place.'
+                  ? 'Try a different name, place or occupation.'
                   : _activeOnly || _tagFilter != null
                   ? 'Try turning off a filter.'
                   : _dueOnly

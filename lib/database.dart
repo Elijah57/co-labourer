@@ -21,7 +21,7 @@ class AppDatabase {
     final dbPath = join(await getDatabasesPath(), 'colaborer.db');
     return openDatabase(
       dbPath,
-      version: 8,
+      version: 9,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
       onCreate: (db, version) async {
         await db.execute('''
@@ -40,7 +40,9 @@ class AppDatabase {
             met_on TEXT,
             met_at TEXT,
             follow_up_date TEXT,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            occupation TEXT,
+            sex TEXT
           )
         ''');
         await db.execute('''
@@ -83,6 +85,10 @@ class AppDatabase {
         if (oldVersion < 8) {
           await _createTags(db);
         }
+        if (oldVersion < 9) {
+          await _addColumnIfMissing(db, 'people', 'occupation', 'TEXT');
+          await _addColumnIfMissing(db, 'people', 'sex', 'TEXT');
+        }
       },
     );
   }
@@ -117,6 +123,20 @@ class AppDatabase {
         about TEXT
       )
     ''');
+  }
+
+  // SQLite has no ADD COLUMN IF NOT EXISTS. An older app version that opens a
+  // newer database resets user_version without removing columns, so a plain
+  // ALTER TABLE would fail with "duplicate column name" when this re-runs.
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String type,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((c) => c['name'] == column)) return;
+    await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
   }
 
   // Additive and idempotent: an older app version that opens a v8 database

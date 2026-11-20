@@ -51,6 +51,8 @@ class PersonInfoCard extends StatelessWidget {
       ));
     }
 
+    add(Icons.wc_outlined, 'Sex', person.sex?.label);
+    add(Icons.work_outline, 'Occupation', person.occupation);
     add(Icons.place_outlined, 'Where we met', person.metAt);
     add(
       Icons.event_outlined,

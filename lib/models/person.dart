@@ -9,11 +9,34 @@ Birthday? _birthdayFrom(Object? value) {
   }
 }
 
+enum Sex {
+  male('MALE', 'Male'),
+  female('FEMALE', 'Female');
+
+  const Sex(this.dbValue, this.label);
+
+  /// Stored in the `sex` column. Do not change these strings.
+  final String dbValue;
+  final String label;
+
+  /// Unknown or missing values load as null rather than crashing.
+  static Sex? fromDb(Object? value) {
+    if (value is! String) return null;
+    final upper = value.trim().toUpperCase();
+    for (final s in Sex.values) {
+      if (s.dbValue == upper) return s;
+    }
+    return null;
+  }
+}
+
 class Person {
   final String id;
   final String firstname;
   final String? lastname;
   final String? othername;
+  final String? occupation;
+  final Sex? sex;
   final String? phoneno;
   final String? email;
   final String? address;
@@ -31,6 +54,8 @@ class Person {
     required this.firstname,
     this.lastname,
     this.othername,
+    this.occupation,
+    this.sex,
     this.phoneno,
     this.email,
     this.address,
@@ -49,6 +74,8 @@ class Person {
     "firstname": firstname,
     "lastname": lastname,
     "othername": othername,
+    "occupation": occupation,
+    "sex": sex?.dbValue,
     "phoneno": phoneno,
     "email": email,
     "address": address,
@@ -68,6 +95,8 @@ class Person {
     firstname: m['firstname'] as String,
     lastname: m['lastname'] as String?,
     othername: m['othername'] as String?,
+    occupation: m['occupation'] as String?,
+    sex: Sex.fromDb(m['sex']),
     phoneno: m['phoneno'] as String?,
     email: m['email'] as String?,
     address: m['address'] as String?,
@@ -90,6 +119,10 @@ class Person {
     String? firstname,
     String? lastname,
     String? othername,
+    String? occupation,
+    bool clearOccupation = false,
+    Sex? sex,
+    bool clearSex = false,
     String? phoneno,
     String? email,
     String? address,
@@ -117,6 +150,8 @@ class Person {
     firstname: firstname ?? this.firstname,
     lastname: clearLastname == true ? null : (lastname ?? this.lastname),
     othername: clearOthername == true ? null : (othername ?? this.othername),
+    occupation: clearOccupation ? null : (occupation ?? this.occupation),
+    sex: clearSex ? null : (sex ?? this.sex),
     phoneno: clearPhoneno == true ? null : (phoneno ?? this.phoneno),
     email: clearEmail == true ? null : (email ?? this.email),
     address: clearAddress == true ? null : (address ?? this.address),

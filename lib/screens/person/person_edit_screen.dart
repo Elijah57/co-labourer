@@ -18,6 +18,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
   late final TextEditingController _firstnameController;
   late final TextEditingController _lastnameController;
   late final TextEditingController _othernameController;
+  late final TextEditingController _occupationController;
   late final TextEditingController _phonenoController;
   late final TextEditingController _emailController;
   late final TextEditingController _addressController;
@@ -27,6 +28,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
   late final TextEditingController _metOnController;
   late final TextEditingController _followUpController;
   Birthday? _birthday;
+  Sex? _sex;
 
   bool _formDirty = false;
   String? _workingPhoto;
@@ -48,6 +50,8 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
     _lastnameController = TextEditingController(text: widget.original.lastname ?? '');
     _othernameController =
         TextEditingController(text: widget.original.othername ?? '');
+    _occupationController =
+        TextEditingController(text: widget.original.occupation ?? '');
     _phonenoController = TextEditingController(text: widget.original.phoneno ?? '');
     _emailController = TextEditingController(text: widget.original.email ?? '');
     _addressController =
@@ -64,6 +68,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
         : TextEditingController();
 
     _birthday = widget.original.birthday;
+    _sex = widget.original.sex;
 
     _setupListeners();
     _loadTags();
@@ -96,6 +101,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
       _firstnameController,
       _lastnameController,
       _othernameController,
+      _occupationController,
       _phonenoController,
       _emailController,
       _addressController,
@@ -120,6 +126,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
     _firstnameController.dispose();
     _lastnameController.dispose();
     _othernameController.dispose();
+    _occupationController.dispose();
     _phonenoController.dispose();
     _emailController.dispose();
     _addressController.dispose();
@@ -140,6 +147,7 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
   Person _buildPerson() {
     final lastname = _lastnameController.text.trim();
     final othername = _othernameController.text.trim();
+    final occupation = _occupationController.text.trim();
     final phoneno = _phonenoController.text.trim();
     final email = _emailController.text.trim();
     final address = _addressController.text.trim();
@@ -159,6 +167,10 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
       clearLastname: lastname.isEmpty,
       othername: othername.isEmpty ? null : othername,
       clearOthername: othername.isEmpty,
+      occupation: occupation.isEmpty ? null : occupation,
+      clearOccupation: occupation.isEmpty,
+      sex: _sex,
+      clearSex: _sex == null,
       phoneno: phoneno.isEmpty ? null : phoneno,
       clearPhoneno: phoneno.isEmpty,
       email: email.isEmpty ? null : email,
@@ -327,6 +339,30 @@ class _PersonEditScreenState extends State<PersonEditScreen> {
             TextField(
               controller: _othernameController,
               decoration: const InputDecoration(labelText: 'Other name'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _occupationController,
+              decoration: const InputDecoration(labelText: 'Occupation'),
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            const SizedBox(height: 12),
+            Text('Sex', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final option in Sex.values)
+                  ChoiceChip(
+                    label: Text(option.label),
+                    selected: _sex == option,
+                    // Tapping the selected chip again clears it.
+                    onSelected: (v) => setState(() {
+                      _sex = v ? option : null;
+                      _formDirty = true;
+                    }),
+                  ),
+              ],
             ),
           ],
         ),
