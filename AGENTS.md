@@ -34,7 +34,7 @@ flutter run
 flutter build apk --debug
 ```
 
-There is no custom lint script, code-generation step, or Makefile. `flutter analyze` is the lint/typecheck command. At the last check it reported six pre-existing warnings/info (unused imports/fields, an unused `_PersonHeader`, deprecated `onPopInvoked`, and `sort_child_properties_last`). Do not assume a warning was introduced by your change without checking `git diff`.
+There is no custom lint script, code-generation step, or Makefile. `flutter analyze` is the lint/typecheck command. At the last check it reported five pre-existing warnings/info (unused imports/fields and an unused `_PersonHeader` in `person_detail.dart`, and `sort_child_properties_last` in `person_edit_screen.dart`). Do not assume a warning was introduced by your change without checking `git diff`.
 
 ## Repository Layout
 
@@ -44,7 +44,8 @@ lib/
   database.dart             SQLite singleton and migrations
   data/audio_storage.dart   app-documents audio/ and photos/ directories
   models/                   Person, Interaction, JournalEntry, Profile
-  repository/               PeopleRepository and InteractionsRepository
+  repository/               PeopleRepository, InteractionsRepository,
+                            TagsRepository
   repositories/             JournalRepository, ProfileRepository,
                             and the separate orphan-audio helper
   screens/
@@ -55,9 +56,11 @@ lib/
   services/                 audio, photo, notifications, backup, auth,
                             auto-backup, app lock, export
   theme/app_theme.dart      colors, typography, Material 3 theme
-  utils/                    birthday parsing, date display
+  utils/                    birthday parsing, date display, Active rule
+                            (activity.dart), share text (person_share.dart)
   widgets/                  reusable UI
-test/widget_test.dart       default counter test only; currently stale
+test/widget_test.dart       default counter test; stale and fails
+test/person_share_test.dart unit tests for the share-text formatter
 ```
 
 Important naming caveat:
@@ -127,11 +130,11 @@ Do not replace this format without a migration and legacy-data handling. `Person
 - `buildTheme` is the design source of truth. Primary palette: deep indigo and wheat/gold. Cards are borderless-looking with outlines; radii are 16/20/12; app bars are indigo.
 - Keep screens consistent with existing `Scaffold`/`AppBar`/card patterns.
 - People list: searchable by name, `metAt` and occupation; due-only filter; Active (conversation in the last 30 days, `lib/utils/activity.dart`) and tag filter chips; swipe-to-delete with confirmation; FAB to add.
-- Person detail: info card, interaction list, swipe-to-delete, mic FAB, "Log conversation" FAB.
-- Person edit: birthday is chosen with `showBirthdayPicker`; follow-up is read-only and date-picked.
+- Person detail: info card, interaction list, swipe-to-delete, mic FAB, "Log conversation" FAB, Share action (plain text via `share_plus`; format in `lib/utils/person_share.dart`, with "Invited By" as "B. <Me name> & <partner>").
+- Person edit: birthday is chosen with `showBirthdayPicker`; follow-up and date met are read-only and date-picked; sex uses Male/Female choice chips (tap again to clear); tags are toggled as chips, new tags are created only on Save, and long-press deletes a tag for everyone immediately. Back with unsaved changes asks to discard.
 - Me: profile dialog opens automatically when no profile exists; journal entries can be written or recorded; swipe-to-delete.
 - The birthday picker lets the user omit the year.
-- `PersonInfoCard` currently displays only `firstname` at the top and not all stored fields. Do not assume every database field has a visible control.
+- `PersonInfoCard` shows first + last name, Active/tag badges, and rows for sex, occupation (both always shown, "Not set" when empty), where/date met, phone, email, address, birthday, follow-up, added, and conversation count. Other rows hide when empty. `partner` and `intro` are not shown. Do not assume every database field has a visible control.
 
 ## Audio and Visualizer
 
@@ -210,7 +213,7 @@ Do not represent export as a full backup. Drive backup is the full backup mechan
 ## Testing Reality
 
 - `test/widget_test.dart` is still the default Flutter counter test and does not match this app. Treat it as stale, not as evidence that behavior is covered.
-- There are no repository, migration, backup, export, notification, or birthday tests.
+- `test/person_share_test.dart` covers the share-text formatter only. There are no repository, migration, backup, export, notification, or birthday-parsing tests; migrations have been checked only by running their SQL against SQLite by hand.
 - If adding tests, prefer pure-unit coverage for `Birthday` parsing/serialization and database migrations first. Do not assume test infrastructure that is not in `pubspec.yaml`.
 - Manual verification is still needed for microphone recording, playback indicators, notification taps, Drive sign-in, restore, share sheet, and app lock.
 
@@ -220,8 +223,8 @@ Do not represent export as a full backup. Drive backup is the full backup mechan
 - Notification tap navigation is not wired.
 - `removeOrphanAudio()` is not called; deleted records can leave audio files behind.
 - Export is people-only, writes to `/tmp`, and its Settings subtitle overstates what it contains.
-- Person profile info such as `metOn`, `partner`, `intro`, email, and address is only partially surfaced in the UI.
-- `PersonInfoCard` shows the first name as the heading, not necessarily the full name.
+- `partner` and `intro` are editable but not shown on the detail screen; `othername` is editable but not in the heading.
+- Occupation, sex, and tags are not in the CSV export.
 - Birthday is informational; follow-up reminders are the only scheduled reminders.
-- The only test is the stale default counter test.
+- Test coverage is limited to the share formatter; the default counter test is stale and fails.
 - The app is local-first and unencrypted at rest; app lock and export warnings are not encryption.
